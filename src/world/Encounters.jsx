@@ -15,8 +15,13 @@ import { STATIONS } from './stations'
  * This places a sequence of distinct celestial features along the flight path,
  * each a different KIND of thing, each waking as the camera comes into range
  * and dimming as it falls behind. The point is variety over distance: a belt of
- * asteroids, then a binary pair, then a derelict ring, then a pulsar — so every
- * stretch of scroll turns up something the visitor has not seen yet.
+ * asteroids, then a binary pair, then a globular cluster, then a pulsar — so
+ * every stretch of scroll turns up something the visitor has not seen yet.
+ *
+ * They are concentrated in the DEEP SPACE half of the journey. The later
+ * stations are reserved for the liquid-metal city, so the arc reads as
+ * wilderness first, architecture second — and the derelict ring station is
+ * placed last of all, as the first built thing you meet on the way in.
  *
  * PERFORMANCE
  * The world already carries a measured startup regression, so this is built to
@@ -46,15 +51,17 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v))
  * finding it on the way there is a journey.
  */
 const ENCOUNTERS = [
-  { kind: 'belt', at: 0.7, off: [-52, 14, -30], scale: 1.0, tint: '#8fa3c2' },
-  { kind: 'binary', at: 1.5, off: [46, 22, -34], scale: 1.0, tint: '#ffd9b8' },
-  { kind: 'moons', at: 2.3, off: [-38, -20, -28], scale: 1.0, tint: '#b8c6dd' },
-  { kind: 'derelict', at: 3.1, off: [44, 10, -36], scale: 1.0, tint: '#5d6a83' },
-  { kind: 'cluster', at: 3.9, off: [-56, 18, -30], scale: 1.0, tint: '#ffe6c4' },
-  { kind: 'pulsar', at: 4.6, off: [40, -18, -32], scale: 1.0, tint: '#ff8f9f' },
-  { kind: 'shards', at: 5.4, off: [-44, 12, -26], scale: 1.0, tint: '#9db3d4' },
-  { kind: 'gasgiant', at: 6.2, off: [52, 20, -40], scale: 1.0, tint: '#c98a4b' },
-  { kind: 'belt', at: 6.9, off: [-46, -14, -30], scale: 0.8, tint: '#7d8aa3' },
+  { kind: 'belt', at: 0.55, off: [-52, 14, -30], scale: 1.0, tint: '#8fa3c2' },
+  { kind: 'binary', at: 0.95, off: [46, 22, -34], scale: 1.0, tint: '#ffd9b8' },
+  { kind: 'moons', at: 1.35, off: [-38, -20, -28], scale: 1.0, tint: '#b8c6dd' },
+  { kind: 'cluster', at: 1.75, off: [-56, 18, -30], scale: 1.0, tint: '#ffe6c4' },
+  { kind: 'gasgiant', at: 2.15, off: [52, 20, -40], scale: 1.0, tint: '#c98a4b' },
+  { kind: 'pulsar', at: 2.55, off: [40, -18, -32], scale: 1.0, tint: '#ff8f9f' },
+  { kind: 'shards', at: 2.95, off: [-44, 12, -26], scale: 1.0, tint: '#9db3d4' },
+  // The derelict sits last, on the approach to the city: the first clearly
+  // BUILT thing out here, so the transition from wilderness to architecture is
+  // foreshadowed rather than abrupt.
+  { kind: 'derelict', at: 3.45, off: [44, 10, -36], scale: 1.2, tint: '#5d6a83' },
 ]
 
 /** World position for an encounter, interpolated along the station path. */
