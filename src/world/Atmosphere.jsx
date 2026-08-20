@@ -2,7 +2,7 @@ import React, { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
-import { STATIONS, STATION_SPACING, WORLD_DEPTH } from './stations'
+import { STATIONS, STATION_SPACING, WORLD_DEPTH, sampleMood } from './stations'
 
 /**
  * The living environment the camera flies through.
@@ -20,7 +20,113 @@ import { STATIONS, STATION_SPACING, WORLD_DEPTH } from './stations'
 
 const DUST_SLAB = 90 // depth of the particulate volume that follows the camera
 
+
+/* ----------------------------------------------------------------- sky ---- */
+
+const skyVertex = /* glsl */ `
+  varying vec3 vDir;
+  void main() {
+    vDir = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+/**
+ * A graded sky, not a clear colour.
+ *
+ * The environment used to be a transparent canvas over a CSS gradient. That
+ * gradient was three saturated veils — crimson, teal, violet — whose composite
+ * was the muddy magenta wash that made the whole page look cheap. The grade
+ * now renders opaque, so the sky has to live in the scene, which is where it
+ * belonged anyway: a real shot has a gradient, a horizon and a source
+ * somewhere off frame, and that is what tells the eye it is looking INTO a
+ * space rather than at an unlit rectangle.
+ *
+ * There is no flat black anywhere in this world — every pixel of background
+ * carries a gradient, a dither and a light source.
+ */
+const skyFragment = /* glsl */ `
+  varying vec3 vDir;
+  uniform vec3 uZenith;
+  uniform vec3 uNadir;
+  uniform vec3 uGlow;
+  uniform float uGlowPower;
+  uniform vec3 uGlowDir;
+  uniform float uTime;
+
+  void main() {
+    vec3 dir = normalize(vDir);
+    float h = dir.y * 0.5 + 0.5;
+    vec3 col = mix(uNadir, uZenith, smoothstep(0.0, 0.92, h));
+
+    // The off-frame key bleeding into the sky. Wide and weak — it should read
+    // as "there is something bright over there", never as a lens flare.
+    float d = max(dot(dir, normalize(uGlowDir)), 0.0);
+    col += uGlow * pow(d, 2.6) * uGlowPower;
+
+    // Cold counter-glow so the dark half of the sky is never dead.
+    float d2 = max(dot(dir, normalize(-uGlowDir)), 0.0);
+    col += vec3(0.038, 0.052, 0.082) * pow(d2, 3.0);
+
+    // Hash dither. Very dark wide gradients band badly on 8-bit displays, and
+    // banding is the single most "cheap render" artefact there is.
+    float n = fract(sin(dot(gl_FragCoord.xy + fract(uTime) * 91.0, vec2(12.9898, 78.233))) * 43758.5453);
+    col += (n - 0.5) * 0.007;
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`
+
+function Sky() {
+  const matRef = useRef()
+  const meshRef = useRef()
+
+  const uniforms = useMemo(
+    () => ({
+      // Never #000. A near-black with a cool cast reads as atmosphere with
+      // depth; pure black reads as an unlit surface.
+      uZenith: { value: new THREE.Color('#0b111c') },
+      uNadir: { value: new THREE.Color('#03050a') },
+      uGlow: { value: new THREE.Color('#8c0f24') },
+      uGlowPower: { value: 0.45 },
+      uGlowDir: { value: new THREE.Vector3(0.6, 0.3, -1) },
+      uTime: { value: 0 },
+    }),
+    []
+  )
+
+  useFrame((state) => {
+    const s = scrollState()
+    // Anchored to the camera so the sky is never escaped as the rig travels.
+    if (meshRef.current) meshRef.current.position.copy(state.camera.position)
+    const u = matRef.current?.uniforms
+    if (!u) return
+    u.uTime.value = s.time
+    // The source swings slowly across the scroll, so the background itself is
+    // part of the choreography rather than a static backdrop.
+    const a = s.time * 0.017 + s.station * 0.62
+    u.uGlowDir.value.set(Math.sin(a), 0.2 + Math.cos(a * 0.6) * 0.28, Math.cos(a) - 0.4)
+    u.uGlowPower.value = 0.32 + sampleMood(s.station, 'accentPower') * 0.4 + s.energy * 0.16
+  })
+
+  return (
+    <mesh ref={meshRef} renderOrder={-1000} frustumCulled={false}>
+      <sphereGeometry args={[620, 32, 24]} />
+      <shaderMaterial
+        ref={matRef}
+        uniforms={uniforms}
+        vertexShader={skyVertex}
+        fragmentShader={skyFragment}
+        side={THREE.BackSide}
+        depthWrite={false}
+        fog={false}
+      />
+    </mesh>
+  )
+}
+
 /* ---------------------------------------------------------------- dust ---- */
+
 
 const dustVertex = /* glsl */ `
   attribute float aSpeed;
@@ -65,7 +171,10 @@ const dustVertex = /* glsl */ `
     vAlpha = smoothstep(0.0, 0.18, travel) * smoothstep(1.0, 0.72, travel);
     vDepth = travel;
 
-    gl_PointSize = aSize * (300.0 / max(-mv.z, 1.0)) * (1.0 + uEnergy * 0.3);
+    // CLAMPED. Unclamped, near motes projected to 40+ pixels of soft white,
+    // which is what turned the field into bokeh snow drifting across the
+    // headline. Dust should read as dust, not as lens blur.
+    gl_PointSize = min(aSize * (190.0 / max(-mv.z, 1.0)), 5.0) * (1.0 + uEnergy * 0.25);
   }
 `
 
@@ -83,13 +192,15 @@ const dustFragment = /* glsl */ `
     vec2 uv = gl_PointCoord - 0.5;
     float d = length(uv);
     if (d > 0.5) discard;
-    float soft = smoothstep(0.5, 0.06, d);
+    // Tight core plus a faint halo, rather than one soft blob. The halo is
+    // what the bloom pass catches and turns into an actual light source.
+    float soft = smoothstep(0.26, 0.0, d) + smoothstep(0.5, 0.0, d) * 0.3;
 
     // A minority of motes carry the station accent, so the field picks up the
     // colour of wherever the camera currently is without turning into confetti.
     vec3 col = mix(uColor, uAccent, step(0.86, vDepth) * (0.5 + uEnergy * 0.5));
 
-    gl_FragColor = vec4(col, soft * vAlpha * 0.55);
+    gl_FragColor = vec4(col, soft * vAlpha * 0.34);
   }
 `
 
@@ -111,7 +222,7 @@ function DustField({ count, quality }) {
       positions[i * 3 + 1] = Math.sin(angle) * radius * 0.55
       positions[i * 3 + 2] = 0 // z is authored entirely in the shader
       speeds[i] = 0.012 + Math.random() * 0.05
-      sizes[i] = (0.6 + Math.random() * 2.4) * quality
+      sizes[i] = (0.5 + Math.random() * 1.5) * quality
       phases[i] = Math.random()
     }
     return { positions, speeds, sizes, phases }
@@ -501,6 +612,7 @@ function LightShafts({ reducedMotion }) {
 
 const Atmosphere = ({ tier, reducedMotion }) => (
   <group>
+    <Sky />
     <StarField count={tier.stars} />
     <CorridorStrata count={tier.strata} />
     <FloatingFragments count={tier.fragments} />

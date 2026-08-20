@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
@@ -9,6 +9,15 @@ import WorldPointer from './WorldPointer'
 import StationProps from './StationProps'
 import { useWorldStore } from '../state/worldStore'
 
+// The grade is the most expensive thing in the world and the first thing that
+// should go on weak hardware, so it is split out and only requested on the
+// tiers that can carry it.
+const PostFX = lazy(() => import('./PostFX'))
+
+/** Diagnostic switches, e.g. ?nofx=1 — for bisecting the render chain. */
+const flag = (name) =>
+  typeof window !== 'undefined' && new URLSearchParams(window.location.search).has(name)
+
 /**
  * Quality tiers.
  *
@@ -18,9 +27,9 @@ import { useWorldStore } from '../state/worldStore'
  * resolution further if the machine still can't hold frame rate.
  */
 const TIERS = {
-  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, dpr: [1, 1.75] },
-  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, dpr: [1, 1.4] },
-  low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, dpr: 1 },
+  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, dpr: [1, 1.75] },
+  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, dpr: [1, 1.4] },
+  low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, grade: false, dpr: 1 },
 }
 
 const pickTier = () => {
@@ -69,15 +78,15 @@ const WorldCanvas = ({ reducedMotion = false }) => {
       camera={{ position: [0, 0.9, 0], fov: 42, near: 0.1, far: 900 }}
       gl={{
         antialias: tierName === 'high',
-        alpha: true,
+        alpha: false,
         powerPreference: 'high-performance',
-        // Transparent so the CSS backdrop underneath provides the base tone and
-        // keeps painting if WebGL is slow, lost, or unavailable.
+        // Opaque: the world owns its own graded sky now. The CSS backdrop
+        // stays as the pre-WebGL and no-WebGL fallback only.
         premultipliedAlpha: false,
       }}
       onCreated={(state) => {
         const { gl } = state
-        gl.setClearColor(new THREE.Color('#07070a'), 0)
+        gl.setClearColor(new THREE.Color('#04060b'), 1)
         gl.toneMapping = THREE.ACESFilmicToneMapping
         gl.toneMappingExposure = 1.05
         // Dev-only handle for inspecting the world from the console. Stripped
@@ -106,6 +115,12 @@ const WorldCanvas = ({ reducedMotion = false }) => {
       <Atmosphere tier={effectiveTier} reducedMotion={reducedMotion} />
       <StationProps tier={effectiveTier} reducedMotion={reducedMotion} />
       <WorldPointer />
+
+      {tier.grade && !flag('nofx') && (
+        <Suspense fallback={null}>
+          <PostFX reducedMotion={reducedMotion} />
+        </Suspense>
+      )}
     </Canvas>
   )
 }
