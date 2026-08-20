@@ -78,51 +78,94 @@ function applyAssembly(obj, i, count, p, target, opts = {}) {
 /* ------------------------------------------------------------ hero core --- */
 
 /**
- * Target transforms for the core.
+ * THE GUARDIAN — the armoured AI avatar of SAFIA.OS.
  *
- * This is the silhouette the site already shipped — head, torso, shoulders,
- * tapering base — kept deliberately sparse. An earlier pass added struts and
- * antennae which, at hero scale against a busy environment, read as a pile of
- * shapes rather than a figure. Legibility of the silhouette matters more than
- * part count, because this is the focal object of the opening frame.
+ * An ORIGINAL powered-armour design. It deliberately borrows none of the
+ * proportions, plating language, colour split or face of any existing
+ * copyrighted character; what it takes is only the general idea of an
+ * articulated armoured figure with an illuminated core, which is a genre
+ * rather than a design. The read here is a machined graphite sentinel with
+ * crimson energy — not a hero suit.
+ *
+ * WHY IT IS BUILT LIKE THIS
+ * -------------------------
+ * The previous core was five primitives stacked vertically: a subdivided
+ * sphere on a large octahedron with two small icosahedra for shoulders. At
+ * hero scale it read as a pile of shapes, not a figure. Silhouette is what
+ * makes a figure legible at a glance, so the parts below are chosen for
+ * OUTLINE first — helmet, gorget, layered pauldrons, tapering chest, a
+ * suspended keel instead of legs — and for detail second.
+ *
+ * Forms stay MATERIAL. Filling them with emissive is what turned the old head
+ * into a glowing balloon; the crimson lives on the edges, the visor and the
+ * chest core, which is how the silhouette gets its energy lines while the
+ * plating still reads as metal.
+ *
+ * Authored in local units where 1 is roughly a shoulder half-width.
  */
 const CORE_PARTS = [
-  { pos: [0, 1.5, 0], geo: 'ico', args: [0.34, 1], accent: true },
-  { pos: [0, 0.5, 0], geo: 'oct', args: [0.66, 0] },
-  { pos: [-0.62, 0.92, 0], geo: 'ico', args: [0.17, 0], accent: true },
-  { pos: [0.62, 0.92, 0], geo: 'ico', args: [0.17, 0], accent: true },
-  { pos: [0, -0.45, 0], geo: 'oct', args: [0.32, 0] },
+  // Torso first, so the assembly stagger builds outward from the core.
+  { pos: [0, 0.62, 0], geo: 'hex', args: [0.46, 0.3, 0.94, 6], accent: true },   // chest plate
+  { pos: [0, 1.16, 0], geo: 'hex', args: [0.3, 0.44, 0.2, 6] },                  // gorget
+  { pos: [0, 0.06, 0], geo: 'hex', args: [0.3, 0.24, 0.34, 6] },                 // waist
+  { pos: [0, -0.36, 0], geo: 'hex', args: [0.36, 0.16, 0.6, 6] },                // hip plates
+  { pos: [0, -0.98, 0], geo: 'oct', args: [0.3, 0], scale: [0.7, 2.1, 0.7] },    // keel
+  { pos: [0, 1.34, 0], geo: 'cyl', args: [0.1, 0.1, 0.22, 8] },                  // neck
+  { pos: [0, 1.62, -0.02], geo: 'oct', args: [0.3, 1], scale: [0.92, 1.2, 1.02], accent: true }, // helmet
+  { pos: [0, 1.58, 0.2], geo: 'box', args: [0.3, 0.26, 0.16], accent: true },    // faceplate
+  { pos: [-0.62, 1.12, 0], geo: 'box', args: [0.46, 0.2, 0.44], rot: [0, 0, 0.28], accent: true },
+  { pos: [0.62, 1.12, 0], geo: 'box', args: [0.46, 0.2, 0.44], rot: [0, 0, -0.28], accent: true },
+  { pos: [-0.66, 0.9, 0], geo: 'box', args: [0.36, 0.16, 0.36], rot: [0, 0, 0.42] },
+  { pos: [0.66, 0.9, 0], geo: 'box', args: [0.36, 0.16, 0.36], rot: [0, 0, -0.42] },
+  { pos: [-0.64, 0.5, 0.02], geo: 'cyl', args: [0.13, 0.11, 0.56, 6] },          // upper arm L
+  { pos: [0.64, 0.5, 0.02], geo: 'cyl', args: [0.13, 0.11, 0.56, 6] },           // upper arm R
+  { pos: [-0.66, 0.16, 0.03], geo: 'ico', args: [0.11, 0] },                     // elbow L
+  { pos: [0.66, 0.16, 0.03], geo: 'ico', args: [0.11, 0] },                      // elbow R
+  { pos: [-0.68, -0.16, 0.06], geo: 'cyl', args: [0.1, 0.085, 0.5, 6] },         // forearm L
+  { pos: [0.68, -0.16, 0.06], geo: 'cyl', args: [0.1, 0.085, 0.5, 6] },          // forearm R
+  { pos: [-0.46, 0.86, -0.34], geo: 'box', args: [0.06, 0.56, 0.24], rot: [0.22, 0, 0.46] },
+  { pos: [0.46, 0.86, -0.34], geo: 'box', args: [0.06, 0.56, 0.24], rot: [0.22, 0, -0.46] },
 ]
 
-/** Local bounds of the assembled core, including the HUD ring. */
-const CORE_HALF_HEIGHT = 1.85 // head top (1.5+0.34) down to base (-0.45-0.32)
-const CORE_HALF_WIDTH = 1.16 // the orbiting ring, which is wider than the body
+/** Local bounds of the assembled figure, including the diagnostic rings. */
+const CORE_HALF_HEIGHT = 1.95 // helmet crown down to keel tip
+const CORE_HALF_WIDTH = 1.3 // the widest diagnostic ring
 
-/** Depth in front of the camera at which the core is parked. */
+/** Depth in front of the camera at which the figure is parked. */
 const CORE_DEPTH = 10.5
 
 /**
- * Where the core should sit, expressed in normalised device coordinates rather
+ * Where the figure sits, expressed in normalised device coordinates rather
  * than world units.
  *
  * The composition is what matters, and NDC is the only frame the composition
  * is actually defined in — world coordinates that look right at 16:9 put the
- * core completely off-screen in portrait, which is exactly what happened when
- * this was a fixed world position. Solving from NDC each frame means the hero
- * frames itself correctly at any viewport, including after a rotate or resize.
+ * figure completely off-screen in portrait, which is exactly what happened
+ * when this was a fixed world position. Solving from NDC each frame means the
+ * hero frames itself correctly at any viewport, including after a rotate.
  */
 const CORE_FRAMING = {
   // Wide: right of the text column, slightly above centre.
   wide: { x: 0.6, y: 0.12, heightFrac: 0.66 },
   // Portrait: centred in the clear band between the nav bar and the headline.
-  // That band is only ~185px tall on a 844px screen, so the core has to be
+  // That band is only ~185px tall on a 844px screen, so the figure has to be
   // both smaller and higher than the wide-viewport framing.
   narrow: { x: 0.04, y: 0.63, heightFrac: 0.3 },
 }
 
+/** The three diagnostic rings that orbit the figure. */
+const DIAGNOSTIC_RINGS = [
+  { radius: 1.28, tube: 0.007, tilt: [Math.PI / 2.4, 0, 0], spin: 0.3, y: 0.6 },
+  { radius: 0.95, tube: 0.005, tilt: [Math.PI / 2.9, 0.5, 0.3], spin: -0.44, y: 0.9 },
+  { radius: 0.52, tube: 0.004, tilt: [Math.PI / 2.1, -0.4, 0.7], spin: 0.62, y: 1.62 },
+]
+
 function partGeometry(part) {
   if (part.geo === 'ico') return <icosahedronGeometry args={part.args} />
   if (part.geo === 'oct') return <octahedronGeometry args={part.args} />
+  // A 6-sided cylinder is a machined prism, not a tube — it catches the rim
+  // light on flats instead of smearing it into a single highlight band.
+  if (part.geo === 'hex' || part.geo === 'cyl') return <cylinderGeometry args={part.args} />
   return <boxGeometry args={part.args} />
 }
 
@@ -131,6 +174,7 @@ function HeroCore({ reducedMotion }) {
   const partRefs = useRef([])
   const coreLight = useRef()
   const glowRef = useRef()
+  const visorRef = useRef()
   const ringRef = useRef()
   const mounted = useRef(0)
   const spinOffset = useRef({ x: 0, y: 0 })
@@ -179,7 +223,15 @@ function HeroCore({ reducedMotion }) {
     // swinging around the world origin.
     partRefs.current.forEach((ref, i) => {
       if (!ref) return
-      applyAssembly(ref, i, CORE_PARTS.length, p, CORE_PARTS[i].pos)
+      const part = CORE_PARTS[i]
+      applyAssembly(ref, i, CORE_PARTS.length, p, part.pos)
+      // Once a part has essentially seated, snap it to its authored bevel and
+      // proportions. Interpolating toward these during the tumble would fight
+      // the assembly rotation and make the plates wobble as they land.
+      if (p > 0.995) {
+        if (part.rot) ref.rotation.set(...part.rot)
+        if (part.scale) ref.scale.set(...part.scale)
+      }
     })
 
     if (groupRef.current) {
@@ -201,17 +253,29 @@ function HeroCore({ reducedMotion }) {
       groupRef.current.visible = p > 0.01
     }
 
-    // Power only arrives once the structure is essentially complete.
+    // Power only arrives once the plating is essentially seated.
     const lit = clamp01((p - 0.82) / 0.18)
-    if (coreLight.current) coreLight.current.intensity = lit * (9 + s.energy * 12)
+    // A slow reactor beat, so the figure is never mechanically still.
+    const beat = reducedMotion ? 1 : 0.88 + 0.12 * Math.sin(s.time * 1.7)
+    if (coreLight.current) coreLight.current.intensity = lit * (10 + s.energy * 14) * beat
     if (glowRef.current) {
-      glowRef.current.material.emissiveIntensity = lit * (2.2 + s.energy * 2)
+      glowRef.current.material.emissiveIntensity = lit * (2.6 + s.energy * 2.4) * beat
       glowRef.current.scale.setScalar(lit * (1 + Math.sin(s.time * 2) * 0.08 * lit))
     }
+    if (visorRef.current) {
+      // The eye line comes up last, after the plating has seated: the figure
+      // finishes assembling and only then looks at you.
+      visorRef.current.material.emissiveIntensity = lit * (2.4 + s.energy * 2.5)
+    }
     if (ringRef.current) {
-      ringRef.current.material.opacity = lit * 0.4
-      ringRef.current.rotation.z = s.time * 0.3
-      ringRef.current.scale.setScalar(0.6 + lit * 0.4)
+      ringRef.current.scale.setScalar(0.55 + lit * 0.45)
+      ringRef.current.children.forEach((ring, i) => {
+        const r = DIAGNOSTIC_RINGS[i]
+        // Each ring turns on its own axis at its own rate, so they never lock
+        // into a single spinning halo.
+        ring.rotation.z = r.tilt[2] + (reducedMotion ? 0 : s.time * r.spin)
+        ring.material.opacity = lit * (0.34 + s.energy * 0.3)
+      })
     }
   })
 
@@ -220,35 +284,59 @@ function HeroCore({ reducedMotion }) {
       {CORE_PARTS.map((part, i) => (
         <mesh key={i} ref={(el) => (partRefs.current[i] = el)}>
           {partGeometry(part)}
-          {/* Polished alloy, lit by the environment map — NOT emissive.
-              Filling the accent parts with crimson emissive turned the
-              subdivided head into a glowing red balloon that read as a
-              lollipop rather than a machined figure. The accent belongs on the
-              EDGES, which is how the silhouette gets its crimson line work
-              while the forms stay metal. */}
+          {/* Machined graphite alloy, lit by the environment map — NOT
+              emissive. The accent belongs on the EDGES, which is how the
+              silhouette gets its crimson energy lines while the plating still
+              reads as metal. */}
           <meshStandardMaterial
-            color="#69728a"
-            metalness={0.95}
-            roughness={0.24}
-            envMapIntensity={1.8}
+            color={part.accent ? '#78829a' : '#5b6377'}
+            metalness={0.96}
+            roughness={part.accent ? 0.19 : 0.31}
+            envMapIntensity={2.1}
           />
-          {part.accent && <Edges threshold={18} color="#ff2d4d" />}
-          {!part.accent && <Edges threshold={18} color="#9fb0cc" />}
+          <Edges threshold={18} color={part.accent ? '#ff2d4d' : '#8fa3c2'} />
         </mesh>
       ))}
 
-      {/* Chest core. Small and tone-mapped: as an untone-mapped emissive it
-          blew out into a floating ball that detached from the silhouette. */}
-      <mesh ref={glowRef} position={[0, 0.55, 0.5]}>
-        <sphereGeometry args={[0.08, 16, 16]} />
-        <meshStandardMaterial color="#ff5c72" emissive="#ff2d4d" emissiveIntensity={0} />
+      {/* Visor. The single feature that makes the helmet read as a head — and
+          the only part of the figure that ever looks back at you. */}
+      <mesh ref={visorRef} position={[0, 1.6, 0.29]} rotation={[0.06, 0, 0]}>
+        <boxGeometry args={[0.235, 0.045, 0.05]} />
+        <meshStandardMaterial
+          color="#ff8f9f"
+          emissive="#ff2d4d"
+          emissiveIntensity={0}
+          toneMapped={false}
+        />
       </mesh>
-      <pointLight ref={coreLight} position={[0, 0.6, 0.42]} color="#ff2d4d" intensity={0} distance={9} decay={2} />
 
-      <mesh ref={ringRef} rotation={[Math.PI / 2.4, 0, 0]} position={[0, 0.6, 0]}>
-        <torusGeometry args={[1.15, 0.006, 8, 96]} />
-        <meshBasicMaterial color="#b3122e" transparent opacity={0} />
+      {/* Chest core. Small and tone-mapped: as an untone-mapped emissive it
+          blew out into a floating ball that detached from the silhouette. The
+          bloom pass is what gives it reach now, not raw intensity. */}
+      <mesh ref={glowRef} position={[0, 0.72, 0.36]}>
+        <sphereGeometry args={[0.11, 20, 20]} />
+        <meshStandardMaterial color="#ff6a80" emissive="#ff2d4d" emissiveIntensity={0} />
       </mesh>
+      {/* The housing that holds it, so the core sits IN the chest rather than
+          floating in front of it. */}
+      <mesh position={[0, 0.72, 0.31]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.17, 0.19, 0.1, 6]} />
+        <meshStandardMaterial color="#4c5468" metalness={0.96} roughness={0.24} envMapIntensity={2} />
+        <Edges threshold={18} color="#ff2d4d" />
+      </mesh>
+
+      <pointLight ref={coreLight} position={[0, 0.76, 0.5]} color="#ff2d4d" intensity={0} distance={11} decay={2} />
+
+      {/* Floating diagnostics: three rings on independent axes. Thin enough to
+          read as instrumentation rather than as decoration. */}
+      <group ref={ringRef}>
+        {DIAGNOSTIC_RINGS.map((r, i) => (
+          <mesh key={i} position={[0, r.y, 0]} rotation={r.tilt}>
+            <torusGeometry args={[r.radius, r.tube, 6, 96]} />
+            <meshBasicMaterial color="#b3122e" transparent opacity={0} toneMapped={false} />
+          </mesh>
+        ))}
+      </group>
     </group>
   )
 }
@@ -274,17 +362,25 @@ function StationGates({ count }) {
           // as a gate you approach. At -6 a radius-7 torus was wider than the
           // frame, so only its corners showed — as arcs wrapping the layout
           // rather than a structure in the distance.
+          // Pushed much further out and much larger. At radius ~7 and 15
+          // units ahead a gate is NARROWER than the frame, so all you ever saw
+          // were red arcs wrapping the layout — a bullseye graphic rather than
+          // architecture. At this scale a gate is a distant ellipse when you
+          // approach it and passes entirely outside the frame as you arrive,
+          // which is unambiguous forward travel and never crosses the text.
           position: [
-            s.position[0] * 0.5 + (k - 1) * 1.6,
-            s.position[1] * 0.4 + (k - 1) * 0.9,
-            s.position[2] - 15 - k * 11,
+            s.position[0] * 0.4 + (k - 1) * 2.4,
+            s.position[1] * 0.3 + (k - 1) * 1.4,
+            s.position[2] - 30 - k * 24,
           ],
           // Tilted off-axis. Perfectly concentric, face-on rings read as a flat
           // bullseye graphic pinned behind the layout; tilting them gives each
           // one its own vanishing ellipse, so they read as structures standing
           // in space at different depths.
-          rotation: [0.26 + k * 0.12, -0.34 + k * 0.16, k * 0.5],
-          radius: 6.5 + k * 2.2,
+          // A consistent shallow tilt, not a random one: matched tilt across
+          // the set reads as installed architecture; random tilt reads as junk.
+          rotation: [0.2 + k * 0.06, -0.16 + k * 0.08, k * 0.32],
+          radius: 22 + k * 10,
           color: s.mood.accent,
           spin: (k % 2 === 0 ? 1 : -1) * (0.03 + k * 0.012),
           index: i,
@@ -303,7 +399,7 @@ function StationGates({ count }) {
       child.rotation.z = gate.rotation[2] + time * gate.spin
       // Brightest as the camera passes through, dark well before and after.
       const near = clamp01(1 - Math.abs(station - gate.index) / 1.3)
-      child.material.opacity = 0.09 + near * (0.34 + energy * 0.22)
+      child.material.opacity = 0.035 + near * (0.16 + energy * 0.12)
     })
   })
 
@@ -311,7 +407,7 @@ function StationGates({ count }) {
     <group ref={groupRef}>
       {gates.map((g) => (
         <mesh key={g.key} position={g.position} rotation={g.rotation} frustumCulled={false}>
-          <torusGeometry args={[g.radius, 0.045, 8, 64]} />
+          <torusGeometry args={[g.radius, 0.075, 6, 72]} />
           <meshBasicMaterial color={g.color} transparent opacity={0.1} toneMapped={false} />
         </mesh>
       ))}
