@@ -77,6 +77,112 @@ function applyAssembly(obj, i, count, p, target, opts = {}) {
   return local
 }
 
+/* ------------------------------------------------------ assembly stages --- */
+
+/**
+ * THE BUILD ORDER.
+ *
+ * The guardian used to assemble as one undifferentiated cloud: every part
+ * scattered to a hashed random point and eased back on a shared curve with an
+ * index stagger. It read as "a pile of debris converges" — a particle effect,
+ * not an assembly. You could not tell a leg from a pauldron on the way in, and
+ * nothing ever looked like it was being BUILT.
+ *
+ * It is now staged, in the order a machine would actually go together: spine,
+ * legs, hips, torso, arms, shoulders, vanes, helmet — then power.
+ *
+ * Two details do most of the work:
+ *
+ *   ENTRY DIRECTION. Each stage arrives from where it should. Legs rise from
+ *   below, the helmet descends from above, arms come in laterally, the torso
+ *   closes from the front, vanes from behind. Direction is what tells the eye
+ *   a part is being FITTED rather than simply appearing.
+ *
+ *   OVERSHOOT. Parts travel slightly past their seat and settle back. That
+ *   small back-easing is the difference between a part sliding to a stop and a
+ *   part LOCKING — it reads as mass meeting a hard stop.
+ *
+ * Windows overlap deliberately, so the build flows continuously rather than
+ * stepping through eight discrete beats.
+ */
+const STAGES = [
+  // [ start, end, entry direction, entry distance ]
+  { start: 0.0, end: 0.16, dir: [0, -1, 0], dist: 3.5 }, // 0 spine, up from below
+  { start: 0.11, end: 0.34, dir: [0, -1, 0], dist: 5.5 }, // 1 legs, rising
+  { start: 0.3, end: 0.44, dir: [0, 0, -1], dist: 4.0 }, // 2 hips, from behind
+  { start: 0.4, end: 0.56, dir: [0, 0, 1], dist: 4.5 }, // 3 torso, closing in front
+  { start: 0.52, end: 0.7, dir: [1, 0, 0], dist: 5.0 }, // 4 arms, laterally
+  { start: 0.66, end: 0.8, dir: [0, 1, 0], dist: 4.0 }, // 5 shoulders, from above
+  { start: 0.74, end: 0.86, dir: [0, 0, -1], dist: 3.0 }, // 6 vanes, from behind
+  { start: 0.82, end: 0.96, dir: [0, 1, 0], dist: 5.0 }, // 7 helmet, descending
+]
+
+/** Power-up windows, after the plating has seated. */
+const REACTOR_WINDOW = [0.86, 0.97]
+const VISOR_WINDOW = [0.93, 1.0]
+
+/**
+ * Back-easing: travel slightly past the seat, then settle.
+ * Kept small — a large overshoot reads as bounce, which is rubber, not metal.
+ */
+const backOut = (t, k = 1.15) => 1 + (k + 1) * Math.pow(t - 1, 3) + k * Math.pow(t - 1, 2)
+
+const stageProgress = (stage, p, jitter) => {
+  const { start, end } = STAGES[stage]
+  // A little per-part offset inside the stage, so members of one stage do not
+  // all land on the same frame.
+  const a = start + (end - start) * 0.35 * jitter
+  return clamp01((p - a) / Math.max(0.0001, end - a))
+}
+
+/**
+ * Drives one part from its staged entry point onto its seat.
+ *
+ * `mirror` flips the lateral entry for left-side parts, so arms arrive from
+ * their own side instead of both sweeping in from the right.
+ */
+function applyStagedAssembly(obj, part, i, p) {
+  const stage = STAGES[part.stage]
+  const jitter = hash(i, 3)
+  const local = stageProgress(part.stage, p, jitter)
+
+  if (local <= 0) {
+    // Hidden until its stage opens, so nothing sits at the origin waiting to
+    // pop into existence.
+    obj.visible = false
+    return 0
+  }
+  obj.visible = true
+
+  const e = backOut(local)
+  const mirror = part.pos[0] < 0 ? -1 : 1
+  const reach = 0.75 + jitter * 0.5
+  const dx = stage.dir[0] * mirror * stage.dist * reach
+  const dy = stage.dir[1] * stage.dist * reach
+  const dz = stage.dir[2] * stage.dist * reach
+
+  obj.position.set(
+    part.pos[0] + dx * (1 - e),
+    part.pos[1] + dy * (1 - e),
+    part.pos[2] + dz * (1 - e)
+  )
+
+  // Settles onto the authored bevel rather than onto zero, so a part meant to
+  // sit at an angle does not snap straight on the final frame.
+  const rest = part.rot || [0, 0, 0]
+  const tumble = (1 - local) * (1.6 + jitter * 2.2)
+  obj.rotation.set(
+    rest[0] + tumble * (hash(i, 17) - 0.5),
+    rest[1] + tumble * (hash(i, 19) - 0.5),
+    rest[2] + tumble * (hash(i, 23) - 0.5)
+  )
+
+  const sc = part.scale || [1, 1, 1]
+  const grow = 0.55 + 0.45 * clamp01(local * 1.6)
+  obj.scale.set(sc[0] * grow, sc[1] * grow, sc[2] * grow)
+  return local
+}
+
 /* ------------------------------------------------------------ hero core --- */
 
 /**
@@ -106,52 +212,54 @@ function applyAssembly(obj, i, count, p, target, opts = {}) {
  * Authored in local units where 1 is roughly a shoulder half-width.
  */
 const CORE_PARTS = [
-  // Torso first, so the assembly stagger builds outward from the core and the
-  // limbs arrive onto a body that already exists.
-  { pos: [0, 0.62, 0], geo: 'hex', args: [0.46, 0.3, 0.94, 6], accent: true },   // chest plate
-  { pos: [0, 1.16, 0], geo: 'hex', args: [0.3, 0.44, 0.2, 6] },                  // gorget
-  { pos: [0, 0.06, 0], geo: 'hex', args: [0.3, 0.24, 0.34, 6] },                 // waist
-  { pos: [0, -0.3, 0], geo: 'hex', args: [0.4, 0.32, 0.36, 6] },                 // pelvis
-  { pos: [0, 1.34, 0], geo: 'cyl', args: [0.1, 0.1, 0.22, 8] },                  // neck
-  { pos: [0, 1.62, -0.02], geo: 'oct', args: [0.3, 1], scale: [0.92, 1.2, 1.02], accent: true }, // helmet
-  { pos: [0, 1.58, 0.2], geo: 'box', args: [0.3, 0.26, 0.16], accent: true },    // faceplate
+  // STAGE 0 - SPINE. The internal column the rest of the machine hangs on.
+  { stage: 0, pos: [0, 0.06, 0], geo: 'hex', args: [0.3, 0.24, 0.34, 6] },       // waist
+  { stage: 0, pos: [0, 1.34, 0], geo: 'cyl', args: [0.1, 0.1, 0.22, 8] },        // neck
 
-  // Shoulders: two layered plates each, which is what gives the silhouette its
-  // stepped, armoured shoulder line instead of a single slab.
-  { pos: [-0.62, 1.12, 0], geo: 'box', args: [0.46, 0.2, 0.44], rot: [0, 0, 0.28], accent: true },
-  { pos: [0.62, 1.12, 0], geo: 'box', args: [0.46, 0.2, 0.44], rot: [0, 0, -0.28], accent: true },
-  { pos: [-0.66, 0.9, 0], geo: 'box', args: [0.36, 0.16, 0.36], rot: [0, 0, 0.42] },
-  { pos: [0.66, 0.9, 0], geo: 'box', args: [0.36, 0.16, 0.36], rot: [0, 0, -0.42] },
+  // STAGE 1 - LEGS, rising from below.
+  { stage: 1, pos: [-0.23, -0.96, 0], geo: 'cyl', args: [0.16, 0.125, 0.6, 6] },
+  { stage: 1, pos: [0.23, -0.96, 0], geo: 'cyl', args: [0.16, 0.125, 0.6, 6] },
+  { stage: 1, pos: [-0.23, -1.32, 0.02], geo: 'ico', args: [0.13, 0] },
+  { stage: 1, pos: [0.23, -1.32, 0.02], geo: 'ico', args: [0.13, 0] },
+  { stage: 1, pos: [-0.23, -1.68, 0.01], geo: 'cyl', args: [0.125, 0.1, 0.62, 6] },
+  { stage: 1, pos: [0.23, -1.68, 0.01], geo: 'cyl', args: [0.125, 0.1, 0.62, 6] },
+  { stage: 1, pos: [-0.23, -2.04, 0.08], geo: 'box', args: [0.24, 0.14, 0.44], accent: true },
+  { stage: 1, pos: [0.23, -2.04, 0.08], geo: 'box', args: [0.24, 0.14, 0.44], accent: true },
 
-  // Arms
-  { pos: [-0.64, 0.5, 0.02], geo: 'cyl', args: [0.13, 0.11, 0.56, 6] },          // upper arm L
-  { pos: [0.64, 0.5, 0.02], geo: 'cyl', args: [0.13, 0.11, 0.56, 6] },           // upper arm R
-  { pos: [-0.66, 0.16, 0.03], geo: 'ico', args: [0.11, 0] },                     // elbow L
-  { pos: [0.66, 0.16, 0.03], geo: 'ico', args: [0.11, 0] },                      // elbow R
-  { pos: [-0.68, -0.16, 0.06], geo: 'cyl', args: [0.1, 0.085, 0.5, 6] },         // forearm L
-  { pos: [0.68, -0.16, 0.06], geo: 'cyl', args: [0.1, 0.085, 0.5, 6] },          // forearm R
-  { pos: [-0.69, -0.48, 0.07], geo: 'box', args: [0.15, 0.22, 0.13], accent: true }, // hand L
-  { pos: [0.69, -0.48, 0.07], geo: 'box', args: [0.15, 0.22, 0.13], accent: true },  // hand R
+  // STAGE 2 - HIPS, seating from behind onto the legs.
+  { stage: 2, pos: [0, -0.3, 0], geo: 'hex', args: [0.4, 0.32, 0.36, 6] },       // pelvis
+  { stage: 2, pos: [-0.23, -0.62, 0], geo: 'box', args: [0.3, 0.22, 0.32], accent: true },
+  { stage: 2, pos: [0.23, -0.62, 0], geo: 'box', args: [0.3, 0.22, 0.32], accent: true },
 
-  // LEGS. The figure used to end in a single tapering keel - a levitating
-  // wedge - which read as a chess piece rather than as a machine that could
-  // walk. Two articulated legs give it weight, a ground line and a stance,
-  // and they are most of why the silhouette now reads as humanoid.
-  { pos: [-0.23, -0.62, 0], geo: 'box', args: [0.3, 0.22, 0.32], accent: true }, // hip housing L
-  { pos: [0.23, -0.62, 0], geo: 'box', args: [0.3, 0.22, 0.32], accent: true },  // hip housing R
-  { pos: [-0.23, -0.96, 0], geo: 'cyl', args: [0.16, 0.125, 0.6, 6] },           // thigh L
-  { pos: [0.23, -0.96, 0], geo: 'cyl', args: [0.16, 0.125, 0.6, 6] },            // thigh R
-  { pos: [-0.23, -1.32, 0.02], geo: 'ico', args: [0.13, 0] },                    // knee L
-  { pos: [0.23, -1.32, 0.02], geo: 'ico', args: [0.13, 0] },                     // knee R
-  { pos: [-0.23, -1.68, 0.01], geo: 'cyl', args: [0.125, 0.1, 0.62, 6] },        // shin L
-  { pos: [0.23, -1.68, 0.01], geo: 'cyl', args: [0.125, 0.1, 0.62, 6] },         // shin R
-  { pos: [-0.23, -2.04, 0.08], geo: 'box', args: [0.24, 0.14, 0.44], accent: true }, // foot L
-  { pos: [0.23, -2.04, 0.08], geo: 'box', args: [0.24, 0.14, 0.44], accent: true },  // foot R
+  // STAGE 3 - TORSO, closing over the spine from the front.
+  { stage: 3, pos: [0, 0.62, 0], geo: 'hex', args: [0.46, 0.3, 0.94, 6], accent: true },
+  { stage: 3, pos: [0, 1.16, 0], geo: 'hex', args: [0.3, 0.44, 0.2, 6] },        // gorget
 
-  // Back vanes last: they read as the exhaust/heat-sink language and are the
-  // detail the eye finds after the silhouette has already landed.
-  { pos: [-0.46, 0.86, -0.34], geo: 'box', args: [0.06, 0.56, 0.24], rot: [0.22, 0, 0.46] },
-  { pos: [0.46, 0.86, -0.34], geo: 'box', args: [0.06, 0.56, 0.24], rot: [0.22, 0, -0.46] },
+  // STAGE 4 - ARMS, in from their own side.
+  { stage: 4, pos: [-0.64, 0.5, 0.02], geo: 'cyl', args: [0.13, 0.11, 0.56, 6] },
+  { stage: 4, pos: [0.64, 0.5, 0.02], geo: 'cyl', args: [0.13, 0.11, 0.56, 6] },
+  { stage: 4, pos: [-0.66, 0.16, 0.03], geo: 'ico', args: [0.11, 0] },
+  { stage: 4, pos: [0.66, 0.16, 0.03], geo: 'ico', args: [0.11, 0] },
+  { stage: 4, pos: [-0.68, -0.16, 0.06], geo: 'cyl', args: [0.1, 0.085, 0.5, 6] },
+  { stage: 4, pos: [0.68, -0.16, 0.06], geo: 'cyl', args: [0.1, 0.085, 0.5, 6] },
+  { stage: 4, pos: [-0.69, -0.48, 0.07], geo: 'box', args: [0.15, 0.22, 0.13], accent: true },
+  { stage: 4, pos: [0.69, -0.48, 0.07], geo: 'box', args: [0.15, 0.22, 0.13], accent: true },
+
+  // STAGE 5 - SHOULDERS, dropping from above. Two layered plates each, which
+  // is what gives the silhouette its stepped armoured line.
+  { stage: 5, pos: [-0.62, 1.12, 0], geo: 'box', args: [0.46, 0.2, 0.44], rot: [0, 0, 0.28], accent: true },
+  { stage: 5, pos: [0.62, 1.12, 0], geo: 'box', args: [0.46, 0.2, 0.44], rot: [0, 0, -0.28], accent: true },
+  { stage: 5, pos: [-0.66, 0.9, 0], geo: 'box', args: [0.36, 0.16, 0.36], rot: [0, 0, 0.42] },
+  { stage: 5, pos: [0.66, 0.9, 0], geo: 'box', args: [0.36, 0.16, 0.36], rot: [0, 0, -0.42] },
+
+  // STAGE 6 - BACK VANES. The heat-sink language, found after the silhouette
+  // has already landed.
+  { stage: 6, pos: [-0.46, 0.86, -0.34], geo: 'box', args: [0.06, 0.56, 0.24], rot: [0.22, 0, 0.46] },
+  { stage: 6, pos: [0.46, 0.86, -0.34], geo: 'box', args: [0.06, 0.56, 0.24], rot: [0.22, 0, -0.46] },
+
+  // STAGE 7 - HELMET, descending last onto the neck.
+  { stage: 7, pos: [0, 1.62, -0.02], geo: 'oct', args: [0.3, 1], scale: [0.92, 1.2, 1.02], accent: true },
+  { stage: 7, pos: [0, 1.58, 0.2], geo: 'box', args: [0.3, 0.26, 0.16], accent: true },
 ]
 
 /** Local bounds of the assembled figure, including the diagnostic rings. */
@@ -244,6 +352,21 @@ function partGeometry(part) {
   return <boxGeometry args={part.args} />
 }
 
+/**
+ * Diagnostic pin for the assembly sequence: ?assembly=0.45 holds the build at
+ * one instant. An eleven-stage sequence that plays once in four seconds on
+ * load is otherwise close to impossible to inspect — you cannot hold a moment
+ * still to check whether a part arrives from the right direction or seats
+ * correctly.
+ */
+const assemblyPin = (() => {
+  if (typeof window === 'undefined') return null
+  const v = new URLSearchParams(window.location.search).get('assembly')
+  if (v === null) return null
+  const n = parseFloat(v)
+  return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : null
+})()
+
 function HeroCore({ reducedMotion }) {
   const groupRef = useRef()
   const partRefs = useRef([])
@@ -279,8 +402,12 @@ function HeroCore({ reducedMotion }) {
     // The guardian assembles ONCE, on load. It never disassembles again,
     // because a protagonist that falls apart every time you scroll past is a
     // loading animation, not a character.
-    mounted.current = Math.min(1, mounted.current + delta / (reducedMotion ? 0.6 : 2.6))
-    const p = mounted.current
+    mounted.current = Math.min(1, mounted.current + delta / (reducedMotion ? 0.6 : 4.4))
+    // Diagnostic: ?assembly=0.45 pins the build at one instant. An eleven-stage
+    // sequence that plays once in four seconds on load is otherwise close to
+    // impossible to inspect - you cannot hold a moment still to see whether a
+    // part is arriving from the right direction or seating correctly.
+    const p = assemblyPin === null ? mounted.current : assemblyPin
 
     /* ---- solve framing for the current viewport ---- */
     const c = sampleCast(s.station, cast.current)
@@ -326,15 +453,7 @@ function HeroCore({ reducedMotion }) {
     // swinging around the world origin.
     partRefs.current.forEach((ref, i) => {
       if (!ref) return
-      const part = CORE_PARTS[i]
-      applyAssembly(ref, i, CORE_PARTS.length, p, part.pos)
-      // Once a part has essentially seated, snap it to its authored bevel and
-      // proportions. Interpolating toward these during the tumble would fight
-      // the assembly rotation and make the plates wobble as they land.
-      if (p > 0.995) {
-        if (part.rot) ref.rotation.set(...part.rot)
-        if (part.scale) ref.scale.set(...part.scale)
-      }
+      applyStagedAssembly(ref, CORE_PARTS[i], i, p)
     })
 
     if (groupRef.current) {
@@ -390,8 +509,13 @@ function HeroCore({ reducedMotion }) {
       rimRef.current.distance = 22 * scale
     }
 
-    // Power only arrives once the plating is essentially seated.
-    const lit = clamp01((p - 0.82) / 0.18)
+    // Power arrives in two beats after the plating seats: the reactor spins up
+    // first, then the visor comes on last. The visor being LAST is the whole
+    // point of the sequence - the machine finishes building, and only then
+    // does it look at you.
+    const reactorLit = clamp01((p - REACTOR_WINDOW[0]) / (REACTOR_WINDOW[1] - REACTOR_WINDOW[0]))
+    const visorLit = clamp01((p - VISOR_WINDOW[0]) / (VISOR_WINDOW[1] - VISOR_WINDOW[0]))
+    const lit = reactorLit
     // A slow reactor beat, so the figure is never mechanically still.
     const beat = reducedMotion ? 1 : 0.88 + 0.12 * Math.sin(s.time * 1.7)
     if (coreLight.current) coreLight.current.intensity = lit * (5.5 + s.energy * 8) * beat
@@ -405,7 +529,7 @@ function HeroCore({ reducedMotion }) {
     if (visorRef.current) {
       // The eye line comes up last, after the plating has seated: the figure
       // finishes assembling and only then looks at you.
-      visorRef.current.material.emissiveIntensity = lit * (1.5 + s.energy * 1.6)
+      visorRef.current.material.emissiveIntensity = visorLit * (1.5 + s.energy * 1.6)
     }
     if (ringRef.current) {
       ringRef.current.scale.setScalar(0.55 + lit * 0.45)
