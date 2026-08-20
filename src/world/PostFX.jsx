@@ -144,8 +144,12 @@ export default function PostFX({ reducedMotion = false }) {
       fragmentShader: brightFragment,
       uniforms: {
         tDiffuse: { value: null },
-        uThreshold: { value: 0.4 },
-        uKnee: { value: 0.35 },
+        // Threshold sits high on purpose. At 0.4 every mid-bright crimson
+        // surface in the scene qualified as a light source, so the reactor and
+        // the edge lines all flared into one red smear. Only genuinely hot
+        // pixels should bloom; everything else keeps its shape.
+        uThreshold: { value: 0.72 },
+        uKnee: { value: 0.28 },
       },
       depthTest: false,
       depthWrite: false,

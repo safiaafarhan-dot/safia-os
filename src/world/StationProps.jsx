@@ -104,32 +104,64 @@ function applyAssembly(obj, i, count, p, target, opts = {}) {
  * Authored in local units where 1 is roughly a shoulder half-width.
  */
 const CORE_PARTS = [
-  // Torso first, so the assembly stagger builds outward from the core.
+  // Torso first, so the assembly stagger builds outward from the core and the
+  // limbs arrive onto a body that already exists.
   { pos: [0, 0.62, 0], geo: 'hex', args: [0.46, 0.3, 0.94, 6], accent: true },   // chest plate
   { pos: [0, 1.16, 0], geo: 'hex', args: [0.3, 0.44, 0.2, 6] },                  // gorget
   { pos: [0, 0.06, 0], geo: 'hex', args: [0.3, 0.24, 0.34, 6] },                 // waist
-  { pos: [0, -0.36, 0], geo: 'hex', args: [0.36, 0.16, 0.6, 6] },                // hip plates
-  { pos: [0, -0.98, 0], geo: 'oct', args: [0.3, 0], scale: [0.7, 2.1, 0.7] },    // keel
+  { pos: [0, -0.3, 0], geo: 'hex', args: [0.4, 0.32, 0.36, 6] },                 // pelvis
   { pos: [0, 1.34, 0], geo: 'cyl', args: [0.1, 0.1, 0.22, 8] },                  // neck
   { pos: [0, 1.62, -0.02], geo: 'oct', args: [0.3, 1], scale: [0.92, 1.2, 1.02], accent: true }, // helmet
   { pos: [0, 1.58, 0.2], geo: 'box', args: [0.3, 0.26, 0.16], accent: true },    // faceplate
+
+  // Shoulders: two layered plates each, which is what gives the silhouette its
+  // stepped, armoured shoulder line instead of a single slab.
   { pos: [-0.62, 1.12, 0], geo: 'box', args: [0.46, 0.2, 0.44], rot: [0, 0, 0.28], accent: true },
   { pos: [0.62, 1.12, 0], geo: 'box', args: [0.46, 0.2, 0.44], rot: [0, 0, -0.28], accent: true },
   { pos: [-0.66, 0.9, 0], geo: 'box', args: [0.36, 0.16, 0.36], rot: [0, 0, 0.42] },
   { pos: [0.66, 0.9, 0], geo: 'box', args: [0.36, 0.16, 0.36], rot: [0, 0, -0.42] },
+
+  // Arms
   { pos: [-0.64, 0.5, 0.02], geo: 'cyl', args: [0.13, 0.11, 0.56, 6] },          // upper arm L
   { pos: [0.64, 0.5, 0.02], geo: 'cyl', args: [0.13, 0.11, 0.56, 6] },           // upper arm R
   { pos: [-0.66, 0.16, 0.03], geo: 'ico', args: [0.11, 0] },                     // elbow L
   { pos: [0.66, 0.16, 0.03], geo: 'ico', args: [0.11, 0] },                      // elbow R
   { pos: [-0.68, -0.16, 0.06], geo: 'cyl', args: [0.1, 0.085, 0.5, 6] },         // forearm L
   { pos: [0.68, -0.16, 0.06], geo: 'cyl', args: [0.1, 0.085, 0.5, 6] },          // forearm R
+  { pos: [-0.69, -0.48, 0.07], geo: 'box', args: [0.15, 0.22, 0.13], accent: true }, // hand L
+  { pos: [0.69, -0.48, 0.07], geo: 'box', args: [0.15, 0.22, 0.13], accent: true },  // hand R
+
+  // LEGS. The figure used to end in a single tapering keel - a levitating
+  // wedge - which read as a chess piece rather than as a machine that could
+  // walk. Two articulated legs give it weight, a ground line and a stance,
+  // and they are most of why the silhouette now reads as humanoid.
+  { pos: [-0.23, -0.62, 0], geo: 'box', args: [0.3, 0.22, 0.32], accent: true }, // hip housing L
+  { pos: [0.23, -0.62, 0], geo: 'box', args: [0.3, 0.22, 0.32], accent: true },  // hip housing R
+  { pos: [-0.23, -0.96, 0], geo: 'cyl', args: [0.16, 0.125, 0.6, 6] },           // thigh L
+  { pos: [0.23, -0.96, 0], geo: 'cyl', args: [0.16, 0.125, 0.6, 6] },            // thigh R
+  { pos: [-0.23, -1.32, 0.02], geo: 'ico', args: [0.13, 0] },                    // knee L
+  { pos: [0.23, -1.32, 0.02], geo: 'ico', args: [0.13, 0] },                     // knee R
+  { pos: [-0.23, -1.68, 0.01], geo: 'cyl', args: [0.125, 0.1, 0.62, 6] },        // shin L
+  { pos: [0.23, -1.68, 0.01], geo: 'cyl', args: [0.125, 0.1, 0.62, 6] },         // shin R
+  { pos: [-0.23, -2.04, 0.08], geo: 'box', args: [0.24, 0.14, 0.44], accent: true }, // foot L
+  { pos: [0.23, -2.04, 0.08], geo: 'box', args: [0.24, 0.14, 0.44], accent: true },  // foot R
+
+  // Back vanes last: they read as the exhaust/heat-sink language and are the
+  // detail the eye finds after the silhouette has already landed.
   { pos: [-0.46, 0.86, -0.34], geo: 'box', args: [0.06, 0.56, 0.24], rot: [0.22, 0, 0.46] },
   { pos: [0.46, 0.86, -0.34], geo: 'box', args: [0.06, 0.56, 0.24], rot: [0.22, 0, -0.46] },
 ]
 
 /** Local bounds of the assembled figure, including the diagnostic rings. */
-const CORE_HALF_HEIGHT = 1.95 // helmet crown down to keel tip
+const CORE_HALF_HEIGHT = 2.0 // helmet crown (1.92) down to sole (-2.11)
 const CORE_HALF_WIDTH = 1.3 // the widest diagnostic ring
+/**
+ * The figure is not symmetric about its own origin - it runs from +1.92 at the
+ * crown to -2.11 at the soles - so the optical centre sits slightly BELOW
+ * zero. Framing has to compensate, or the figure hangs high in its box and the
+ * composition reads as if it is floating away from the layout.
+ */
+const CORE_CENTRE_Y = -0.1
 
 /** Depth in front of the camera at which the figure is parked. */
 const CORE_DEPTH = 10.5
@@ -174,6 +206,7 @@ function HeroCore({ reducedMotion }) {
   const partRefs = useRef([])
   const coreLight = useRef()
   const glowRef = useRef()
+  const irisRef = useRef()
   const visorRef = useRef()
   const ringRef = useRef()
   const mounted = useRef(0)
@@ -214,7 +247,7 @@ function HeroCore({ reducedMotion }) {
     // The camera drifts with the pointer; anchoring to camera.position keeps
     // the core locked to its spot in frame instead of sliding with the drift.
     const baseX = camera.position.x + frame.x * halfW
-    const baseY = camera.position.y + frame.y * halfH - 0.5 * scale
+    const baseY = camera.position.y + frame.y * halfH - CORE_CENTRE_Y * scale
     const baseZ = camera.position.z - CORE_DEPTH
     const base = [baseX, baseY, baseZ]
 
@@ -257,15 +290,18 @@ function HeroCore({ reducedMotion }) {
     const lit = clamp01((p - 0.82) / 0.18)
     // A slow reactor beat, so the figure is never mechanically still.
     const beat = reducedMotion ? 1 : 0.88 + 0.12 * Math.sin(s.time * 1.7)
-    if (coreLight.current) coreLight.current.intensity = lit * (10 + s.energy * 14) * beat
+    if (coreLight.current) coreLight.current.intensity = lit * (5.5 + s.energy * 8) * beat
     if (glowRef.current) {
-      glowRef.current.material.emissiveIntensity = lit * (2.6 + s.energy * 2.4) * beat
+      // Kept deliberately low. The bloom pass is what gives the core its
+      // reach; driving the emissive hard as well blew it into a red ball that
+      // swallowed the chest and detached from the silhouette.
+      glowRef.current.material.emissiveIntensity = lit * (0.85 + s.energy * 0.9) * beat
       glowRef.current.scale.setScalar(lit * (1 + Math.sin(s.time * 2) * 0.08 * lit))
     }
     if (visorRef.current) {
       // The eye line comes up last, after the plating has seated: the figure
       // finishes assembling and only then looks at you.
-      visorRef.current.material.emissiveIntensity = lit * (2.4 + s.energy * 2.5)
+      visorRef.current.material.emissiveIntensity = lit * (1.5 + s.energy * 1.6)
     }
     if (ringRef.current) {
       ringRef.current.scale.setScalar(0.55 + lit * 0.45)
@@ -289,10 +325,10 @@ function HeroCore({ reducedMotion }) {
               silhouette gets its crimson energy lines while the plating still
               reads as metal. */}
           <meshStandardMaterial
-            color={part.accent ? '#78829a' : '#5b6377'}
-            metalness={0.96}
-            roughness={part.accent ? 0.19 : 0.31}
-            envMapIntensity={2.1}
+            color={part.accent ? '#8b95ad' : '#6a7387'}
+            metalness={0.94}
+            roughness={part.accent ? 0.22 : 0.34}
+            envMapIntensity={2.4}
           />
           <Edges threshold={18} color={part.accent ? '#ff2d4d' : '#8fa3c2'} />
         </mesh>
@@ -314,7 +350,7 @@ function HeroCore({ reducedMotion }) {
           blew out into a floating ball that detached from the silhouette. The
           bloom pass is what gives it reach now, not raw intensity. */}
       <mesh ref={glowRef} position={[0, 0.72, 0.36]}>
-        <sphereGeometry args={[0.11, 20, 20]} />
+        <sphereGeometry args={[0.075, 20, 20]} />
         <meshStandardMaterial color="#ff6a80" emissive="#ff2d4d" emissiveIntensity={0} />
       </mesh>
       {/* The housing that holds it, so the core sits IN the chest rather than
@@ -323,6 +359,15 @@ function HeroCore({ reducedMotion }) {
         <cylinderGeometry args={[0.17, 0.19, 0.1, 6]} />
         <meshStandardMaterial color="#4c5468" metalness={0.96} roughness={0.24} envMapIntensity={2} />
         <Edges threshold={18} color="#ff2d4d" />
+      </mesh>
+
+      {/* Iris: a thin ring around the aperture. Without it the core reads as
+          a ball glued to the chest; with it, as a light sitting INSIDE a
+          machined housing, which is the whole difference between a toy and a
+          piece of hardware. */}
+      <mesh ref={irisRef} position={[0, 0.72, 0.345]}>
+        <torusGeometry args={[0.115, 0.012, 6, 32]} />
+        <meshStandardMaterial color="#9aa6bd" metalness={0.95} roughness={0.22} envMapIntensity={2.2} />
       </mesh>
 
       <pointLight ref={coreLight} position={[0, 0.76, 0.5]} color="#ff2d4d" intensity={0} distance={11} decay={2} />

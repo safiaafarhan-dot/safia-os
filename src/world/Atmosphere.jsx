@@ -456,10 +456,10 @@ function CorridorStrata({ count }) {
           reflection into a dim sheen, so the ribs read as structure catching a
           little light rather than as light sources themselves. */}
       <meshStandardMaterial
-        color="#242a38"
-        metalness={0.72}
-        roughness={0.62}
-        envMapIntensity={0.85}
+        color="#1e2432"
+        metalness={0.62}
+        roughness={0.74}
+        envMapIntensity={0.45}
       />
     </instancedMesh>
   )
