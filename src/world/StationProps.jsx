@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Edges } from '@react-three/drei'
 import * as THREE from 'three'
 import { pulseEnergy, scrollState } from '../state/scrollStore'
 import { STATIONS } from './stations'
@@ -17,6 +16,34 @@ import { consumeSpin, registerInteractive } from './interaction'
  */
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0)
+
+/**
+ * Edge line work, native.
+ *
+ * drei's <Edges> is a convenience wrapper over EdgesGeometry + lineSegments,
+ * and it pulled the whole drei package into the vendor chunk. This is the same
+ * two primitives with the same result, and it lets the dependency go.
+ *
+ * The geometry is derived from the parent mesh's own geometry on mount, so it
+ * tracks whatever primitive the part is built from.
+ */
+function EdgeLines({ threshold = 18, color = '#ffffff' }) {
+  const ref = useRef()
+  useEffect(() => {
+    const line = ref.current
+    const parent = line?.parent
+    const geo = parent?.geometry
+    if (!geo) return
+    const edges = new THREE.EdgesGeometry(geo, threshold)
+    line.geometry = edges
+    return () => edges.dispose()
+  }, [threshold])
+  return (
+    <lineSegments ref={ref} raycast={() => null}>
+      <lineBasicMaterial color={color} toneMapped={false} />
+    </lineSegments>
+  )
+}
 
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3)
 const clamp01 = (v) => Math.max(0, Math.min(1, v))
@@ -571,7 +598,7 @@ function HeroCore({ reducedMotion }) {
             roughness={part.accent ? 0.26 : 0.38}
             envMapIntensity={2.4}
           />
-          <Edges threshold={18} color={part.accent ? '#e8b45c' : '#8fa3c2'} />
+          <EdgeLines threshold={18} color={part.accent ? '#e8b45c' : '#8fa3c2'} />
         </mesh>
       ))}
 
@@ -599,7 +626,7 @@ function HeroCore({ reducedMotion }) {
       <mesh position={[0, 0.72, 0.31]} rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.17, 0.19, 0.1, 6]} />
         <meshStandardMaterial color="#4c5468" metalness={0.96} roughness={0.24} envMapIntensity={2} />
-        <Edges threshold={18} color="#ff2d4d" />
+        <EdgeLines threshold={18} color="#ff2d4d" />
       </mesh>
 
       {/* Iris: a thin ring around the aperture. Without it the core reads as

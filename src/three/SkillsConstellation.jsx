@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Html } from '@react-three/drei'
 import * as THREE from 'three'
+import Label3D from './Label3D'
 import { skillNodes, skillEdges, neighboursOf } from '../data/skillGraph'
 
 const CRIMSON = new THREE.Color('#b3122e')
@@ -101,12 +101,11 @@ function Node({ node, state, onActivate, showLabel }) {
         </>
       )}
 
+      {/* Camera-facing sprite label rather than drei's Html. The same
+          technology names are listed as real DOM in the Skills index below the
+          canvas, so the graph is never the only way to read them. */}
       {showLabel && (
-        <Html center distanceFactor={9} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
-          <div className="whitespace-nowrap -translate-y-8 font-mono text-[11px] tracking-[0.2em] uppercase text-off-white bg-hero-black/85 border border-crimson/50 px-2 py-1 rounded-sm">
-            {node.name}
-          </div>
-        </Html>
+        <Label3D position={[0, 0.55, 0]} title={node.name} status="" scale={0.7} />
       )}
     </group>
   )

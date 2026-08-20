@@ -1,7 +1,7 @@
 import React, { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Environment, Lightformer } from '@react-three/drei'
 import * as THREE from 'three'
+import NativeEnv from './NativeEnv'
 import { scrollState } from '../state/scrollStore'
 import { STATIONS, sampleMood } from './stations'
 
@@ -90,53 +90,16 @@ export default function LightRig({ reducedMotion }) {
 
   return (
     <>
-      {/* Reflections. Rendered once into a 128px cube map — small, local, and
-          the difference between visible metal and black shapes. */}
-      {!skipEnv && (
-      <Environment resolution={128} frames={1} background={false}>
-        {/* Cool overhead strip — the dominant reflection on top surfaces. */}
-        <Lightformer
-          form="rect"
-          intensity={2.5}
-          color="#9fb4d8"
-          position={[0, 8, -6]}
-          rotation={[Math.PI / 2, 0, 0]}
-          scale={[24, 14, 1]}
-        />
-        {/* Crimson signal panel behind and to the right — the brand rim that
-            traces the edge of every structure. */}
-        <Lightformer
-          form="rect"
-          intensity={2.9}
-          color="#ff2d4d"
-          position={[9, 1, -10]}
-          rotation={[0, -Math.PI / 2.4, 0]}
-          scale={[16, 10, 1]}
-        />
-        {/* Cold counter-panel on the left keeps shadow sides from going flat. */}
-        <Lightformer
-          form="rect"
-          intensity={1.6}
-          color="#4d7fa8"
-          position={[-10, 0, -4]}
-          rotation={[0, Math.PI / 2.4, 0]}
-          scale={[14, 10, 1]}
-        />
-        {/* Faint floor bounce so undersides aren't pure black. */}
-        <Lightformer
-          form="rect"
-          intensity={0.7}
-          color="#2c3240"
-          position={[0, -7, -6]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          scale={[20, 12, 1]}
-        />
-        <mesh scale={60}>
-          <sphereGeometry args={[1, 16, 16]} />
-          <meshBasicMaterial color="#0b0d14" side={THREE.BackSide} />
-        </mesh>
-      </Environment>
-      )}
+      {/* Reflections. Four emissive panels rendered once into a small cube
+          map — see NativeEnv. Every surface out here is a metal with no
+          diffuse response, so without something to reflect the geometry
+          renders as black shapes; this is load-bearing, not decoration.
+
+          It replaces drei's Environment/Lightformer, which measured as the
+          second-largest contributor to a vendor bundle that is 86% of the
+          page's main-thread work. Same panel positions, colours and
+          intensities, so the lighting is unchanged. */}
+      {!skipEnv && <NativeEnv resolution={128} />}
 
       <ambientLight ref={ambientRef} intensity={0.34} color="#5c6478" />
 

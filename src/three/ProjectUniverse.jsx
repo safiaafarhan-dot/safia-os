@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Html } from '@react-three/drei'
 import * as THREE from 'three'
+import Label3D from './Label3D'
 
 const CRIMSON = '#b3122e'
 const METAL = '#5a5a62'
@@ -304,25 +304,16 @@ function Module({ project, position, state, onHover, onSelect }) {
         {Visual && <Visual energyRef={energyRef} />}
       </group>
 
-      {/* No distanceFactor — labels hold a constant HUD size as the camera moves. */}
-      <Html center position={[0, -1.5, 0]} style={{ pointerEvents: 'none' }} zIndexRange={[20, 0]}>
-        <div className="whitespace-nowrap text-center select-none">
-          <div
-            className={`text-sm font-display font-bold tracking-tight transition-colors duration-300 ${
-              isDimmed ? 'text-silver/75' : 'text-off-white'
-            }`}
-          >
-            {project.name}
-          </div>
-          <div
-            className={`text-[9px] font-mono tracking-[0.25em] mt-1 transition-colors duration-300 ${
-              isActive ? 'text-crimson-text' : isDetected ? 'text-silver/75' : 'text-silver/75'
-            }`}
-          >
-            {isActive ? 'MODULE ACTIVE' : isDetected ? 'MODULE DETECTED' : 'MODULE OFFLINE'}
-          </div>
-        </div>
-      </Html>
+      {/* Label as a camera-facing sprite rather than drei's Html. With
+          sizeAttenuation off it holds a constant on-screen size — the same HUD
+          behaviour the Html version had with no distanceFactor. Every name and
+          state here also exists as real DOM in the Projects section. */}
+      <Label3D
+        position={[0, -1.5, 0]}
+        title={project.name}
+        status={isActive ? 'MODULE ACTIVE' : isDetected ? 'MODULE DETECTED' : 'MODULE OFFLINE'}
+        statusColor={isActive ? '#e6455e' : isDimmed ? '#a7aebd' : '#c3c8d4'}
+      />
     </group>
   )
 }

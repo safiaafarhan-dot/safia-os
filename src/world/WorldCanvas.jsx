@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
+import AdaptiveDpr from './AdaptiveDpr'
 import Atmosphere from './Atmosphere'
 import BlackHole from './BlackHole'
 import DeepSpace from './DeepSpace'
@@ -99,11 +99,9 @@ const WorldCanvas = ({ reducedMotion = false }) => {
     >
       {/* Degrade resolution before frame rate. A soft-but-smooth world reads
           far better than a sharp one that stutters as you scroll. */}
-      <PerformanceMonitor
-        onDecline={() => setDpr(1)}
-        onIncline={() => setDpr(tier.dpr)}
-        flipflops={3}
-      />
+      {/* Native FPS sampling rather than drei's PerformanceMonitor — same
+          policy, without keeping the whole package in the vendor chunk. */}
+      <AdaptiveDpr onDecline={() => setDpr(1)} onIncline={() => setDpr(tier.dpr)} flipflops={3} />
 
       {/* Fog is a desaturated blue-grey, not near-black. Fogging to black makes
           distance read as "nothing there"; fogging to a lit haze reads as depth
