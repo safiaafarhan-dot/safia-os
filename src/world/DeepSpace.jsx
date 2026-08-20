@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
 import { getNoiseTexture } from './noise'
+import { nearFieldsSuppressed, pushOutOfColumn } from './safeZone'
 import { blackHoleState } from './blackHoleState'
 
 /**
@@ -409,6 +410,7 @@ function Singularity({ position, radius, tilt, from = 0 }) {
 function Foreground({ count }) {
   const meshRef = useRef()
   const dummy = useMemo(() => new THREE.Object3D(), [])
+  const safe = useMemo(() => new THREE.Vector3(), [])
 
   const shards = useMemo(
     () =>
@@ -443,6 +445,9 @@ function Foreground({ count }) {
     // "distant" subset worth keeping — every shard in this layer is close by
     // construction — so the whole layer waits for the matter band.
     const arrived = THREE.MathUtils.smoothstep(s.station, 3.5, 4.5)
+    // Narrow viewports have no clear margin beside the text to push into, and
+    // these are the largest near objects, so they stand down there.
+    const shrink = nearFieldsSuppressed() ? 0 : 1
 
     // NOTE: these used to fade out against blackHoleState.presence, on the
     // premise that the corridor "gave way" as a transient black hole took the
@@ -465,8 +470,14 @@ function Foreground({ count }) {
         Math.sin(f.angle) * f.radius * 0.62 + s.pointerSmoothY * near * 2.2,
         z
       )
+      // SAFE ZONE. These pass closest to the lens, so they are both the best
+      // parallax in the world and the worst thing to have crossing a heading.
+      pushOutOfColumn(dummy.position.x, dummy.position.y, dummy.position.z, safe, 1, undefined, f.scale[0] * 1.5)
+      dummy.position.copy(safe)
+
       dummy.rotation.set(f.phase, f.phase * 1.3 + s.time * f.spin * 0.1, f.phase * 0.7)
-      dummy.scale.set(f.scale[0] * arrived, f.scale[1] * arrived, f.scale[2] * arrived)
+      const k = arrived * shrink
+      dummy.scale.set(f.scale[0] * k, f.scale[1] * k, f.scale[2] * k)
       dummy.updateMatrix()
       mesh.setMatrixAt(i, dummy.matrix)
     }
@@ -517,7 +528,14 @@ const DeepSpace = ({ tier }) => {
   return (
     <group>
       {/* Furthest: two galaxies on opposite sides of the corridor, so the
-          camera always has one of them somewhere in frame. */}
+          camera always has one of them somewhere in frame.
+
+          These are deliberately EXEMPT from the reading-column keep-out. They
+          sit 200-520 units out and are 95-120 units across, so they read as
+          sky rather than as objects, and shoving something that large sideways
+          because its centre crossed a column would swing the whole backdrop.
+          Both are placed well off the flight axis instead, which is the right
+          tool for a body at that scale. */}
       <Galaxy
         count={tier.galaxy}
         position={[-330, 120, -200]}

@@ -123,10 +123,10 @@ const WorldCanvas = ({ reducedMotion = false }) => {
       <Encounters tier={effectiveTier} />
 
       {/* The cursor is the force acting on this world now that the guardian
-          and the black hole are gone. This drives the shared field every frame
-          and renders the motes that gather in it, so the cause of the drift
-          elsewhere is visible rather than unexplained. */}
-      <CursorField count={effectiveTier.cursorMotes} reducedMotion={reducedMotion} />
+          and the black hole are gone. This drives the shared field every frame;
+          it draws nothing itself, because a cloud of motes bound to the pointer
+          sat on top of whatever control the visitor was reaching for. */}
+      <CursorField reducedMotion={reducedMotion} />
 
       <Atmosphere tier={effectiveTier} reducedMotion={reducedMotion} />
       <WorldPointer />

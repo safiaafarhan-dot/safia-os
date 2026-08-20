@@ -3,6 +3,7 @@ import { personalBrand } from '../data'
 import SectionHeader from '../components/ui/SectionHeader'
 import { Reveal, RevealGroup, RevealItem } from '../components/ui/Reveal'
 import { Tilt } from '../components/ui/Magnetic'
+import LiveTranscription from '../components/LiveTranscription'
 
 const identityRows = [
   { field: 'NAME', value: personalBrand.name },
@@ -13,7 +14,7 @@ const identityRows = [
 const About = () => {
   return (
     <section id="about" className="relative py-24 md:py-36 px-6 md:px-10 station station--dense">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto" data-safe>
         <SectionHeader index="01" label="IDENTITY" title="ABOUT" />
 
         {/* Identity readout — a system record rather than a bio block */}
@@ -40,6 +41,14 @@ const About = () => {
               ))}
             </dl>
           </Tilt>
+        </Reveal>
+
+        {/* Speech, shown where there is room to read it. The identity readout
+            above is a system record; this is the same idea applied to input -
+            the section reports what it is hearing rather than hiding it in a
+            corner dock. */}
+        <Reveal className="mb-14">
+          <LiveTranscription hint="Say “open skills” or “show projects” to move through the system by voice." />
         </Reveal>
 
         <Reveal as="p" className="text-titanium text-base md:text-lg leading-relaxed max-w-3xl mb-16">

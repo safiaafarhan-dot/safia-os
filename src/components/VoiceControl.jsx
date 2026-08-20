@@ -128,6 +128,19 @@ const VoiceControl = () => {
     }
   }
 
+  // Honour a request from elsewhere in the page (the About and Skills
+  // transcription panels). Keeping the mic owned in one place is what stops
+  // two recognisers fighting over the device.
+  const micRequest = useWorldStore((s) => s.micRequest)
+  useEffect(() => {
+    if (micRequest === 0) return
+    setExpanded(true)
+    start()
+    // `start` is stable and intentionally excluded: re-running this on every
+    // identity change would re-open the microphone without the visitor asking.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [micRequest])
+
   // Clear the recognition readout a moment after it lands, so the panel does
   // not keep displaying a command from a minute ago as if it were current.
   useEffect(() => {

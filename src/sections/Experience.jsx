@@ -6,7 +6,7 @@ import { Reveal, RevealGroup, RevealItem } from '../components/ui/Reveal'
 const Experience = () => {
   return (
     <section id="experience" className="relative py-24 md:py-36 px-6 md:px-10 station station--dense">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto" data-safe>
         <SectionHeader index="03" label="TIMELINE" title="EXPERIENCE" />
 
         {/* Roles */}

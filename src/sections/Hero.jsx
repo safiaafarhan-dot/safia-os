@@ -27,7 +27,7 @@ const Hero = () => {
       <div className="relative z-10 w-full max-w-6xl mx-auto px-6 md:px-10">
         {/* Entrance cascade — the hero is already in view, so this plays on mount
             rather than waiting for a scroll trigger. */}
-        <RevealGroup className="max-w-xl text-center md:text-left mt-56 md:mt-0" stagger={0.11} delay={0.15}>
+        <RevealGroup className="max-w-xl text-center md:text-left mt-56 md:mt-0" stagger={0.11} delay={0.15} data-safe>
           <RevealItem className="flex items-center justify-center md:justify-start gap-3 mb-8">
             <span className="w-1.5 h-1.5 rounded-full bg-crimson" />
             <span className="text-crimson-text text-[10px] md:text-xs font-mono tracking-[0.4em]">

@@ -5,6 +5,7 @@ import { scrollState } from '../state/scrollStore'
 import { STATIONS } from './stations'
 import { chargedInfluenceAt, cursorField } from './cursorFieldState'
 import { getNoiseTexture } from './noise'
+import { nearFieldsSuppressed, pushOutOfColumn, safeZone } from './safeZone'
 
 /**
  * ENCOUNTERS — the things you find by going deeper.
@@ -70,15 +71,15 @@ const ENCOUNTERS = [
         on screen here, so everything in this band is weightless: stars, a dust
         veil, and one cool gas bloom well off-axis. No mass, no silhouettes
         cutting across the reading column. -- */
-  { kind: 'cluster', at: 0.45, off: [-60, 18, -38], scale: 1.0, tint: '#cfe0f5' },
-  { kind: 'dust', at: 0.85, off: [36, -8, -32], scale: 1.0, tint: '#9dc0e4' },
+  { kind: 'dust', at: 0.6, off: [36, -8, -32], scale: 1.0, tint: '#9dc0e4' },
   { kind: 'nebula', at: 1.25, off: [68, 20, -54], scale: 0.95, tint: '#3f7fb5', outer: '#0a121c' },
 
   /* -- DEEPER UNIVERSE. Still weightless, but further out and more energetic,
         so distance starts to read as something being travelled into. -- */
-  { kind: 'binary', at: 1.7, off: [46, 22, -34], scale: 1.0, tint: '#ffd9b8' },
-  { kind: 'pulsar', at: 2.1, off: [-42, -18, -32], scale: 1.0, tint: '#ff8f9f' },
-  { kind: 'dust', at: 2.4, off: [-32, 8, -34], scale: 1.0, tint: '#8fb6dd' },
+  { kind: 'cluster', at: 1.75, off: [-64, 20, -42], scale: 1.0, tint: '#cfe0f5' },
+  { kind: 'binary', at: 2.05, off: [46, 22, -34], scale: 1.0, tint: '#ffd9b8' },
+  { kind: 'pulsar', at: 2.35, off: [-42, -18, -32], scale: 1.0, tint: '#ff8f9f' },
+  { kind: 'dust', at: 2.6, off: [-32, 8, -34], scale: 1.0, tint: '#8fb6dd' },
 
   /* -- WORLDS. First solid bodies, then the crystal that bridges into matter. -- */
   { kind: 'moons', at: 2.8, off: [-38, -20, -28], scale: 1.0, tint: '#b8c6dd' },
@@ -461,6 +462,7 @@ function GasGiant({ tint }) {
 function FloatingField({ count }) {
   const meshRef = useRef()
   const dummy = useMemo(() => new THREE.Object3D(), [])
+  const safe = useMemo(() => new THREE.Vector3(), [])
   const SLAB = 260
 
   const bits = useMemo(
@@ -493,6 +495,10 @@ function FloatingField({ count }) {
     // fragments — the ones that read as physical objects rather than as
     // parallax — wait for the band where matter is the subject.
     const arrived = THREE.MathUtils.smoothstep(station, 3.4, 4.4)
+    // On a phone the text runs edge to edge, so there is no "beside the
+    // column" to push things into. Rather than delete the layer, shrink it
+    // until it reads as fine particulate — depth without obstruction.
+    const mobileScale = nearFieldsSuppressed() ? 0.35 : 1
 
     for (let i = 0; i < bits.length; i++) {
       const b = bits[i]
@@ -521,10 +527,17 @@ function FloatingField({ count }) {
         spin += inf * 4
       }
 
-      dummy.position.set(px, py, pz)
+      // SAFE ZONE. Slide anything that would pass behind the text out to the
+      // edge of the reading column. The correction is along the camera's own
+      // right vector and eases with depth, so a fragment drifts around the
+      // column rather than jumping sideways, and keeps its distance and its
+      // parallax the whole way past.
+      pushOutOfColumn(px, py, pz, safe, 1, safeZone.near, b.size * 1.2)
+
+      dummy.position.copy(safe)
       dummy.rotation.set(b.angle + spin, b.angle * 1.7, spin * 0.5)
       // Charged bodies swell slightly — energy, not just displacement.
-      dummy.scale.setScalar(b.size * (1 + inf * 0.5) * presence)
+      dummy.scale.setScalar(b.size * (1 + inf * 0.5) * presence * mobileScale)
       dummy.updateMatrix()
       mesh.setMatrixAt(i, dummy.matrix)
     }
@@ -723,6 +736,7 @@ function Dust({ count, tint }) {
 function Encounter({ spec, tier }) {
   const groupRef = useRef()
   const position = useMemo(() => positionFor(spec), [spec])
+  const safe = useMemo(() => new THREE.Vector3(), [])
 
   useFrame(() => {
     const g = groupRef.current
@@ -735,6 +749,15 @@ function Encounter({ spec, tier }) {
     if (g.visible) {
       const s = spec.scale * (0.6 + near * 0.4)
       g.scale.setScalar(s)
+
+      // These are the biggest single objects in the world, so an encounter
+      // parked behind a paragraph is the most damaging overlap there is. Push
+      // the whole group clear of the column. `nearLimit` is generous because a
+      // belt or a derelict is still visually large at 200 units.
+      // Encounter bodies spread roughly 40 units around their origin, and the
+      // group is scaled by proximity, so the clearance has to scale with it.
+      pushOutOfColumn(position[0], position[1], position[2], safe, 1, 240, 42 * s)
+      g.position.copy(safe)
     }
   })
 

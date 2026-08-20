@@ -2,6 +2,7 @@ import React, { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
+import { nearFieldsSuppressed, pushOutOfColumn } from './safeZone'
 import { blackHoleState } from './blackHoleState'
 import { STATIONS, STATION_SPACING, WORLD_DEPTH, sampleMood } from './stations'
 
@@ -387,6 +388,7 @@ function StarField({ count }) {
  */
 function CorridorStrata({ count }) {
   const meshRef = useRef()
+  const safe = useRef(new THREE.Vector3())
 
   const instances = useMemo(() => {
     const out = []
@@ -476,6 +478,7 @@ function CorridorStrata({ count }) {
     // of degenerate geometry rather than a frame full of grey slabs behind the
     // title.
     const arrived = THREE.MathUtils.smoothstep(station, 3.2, 4.2)
+    const shrink = nearFieldsSuppressed() ? 0.45 : 1
     if (arrived <= 0.001) {
       if (mesh.visible) mesh.visible = false
       return
@@ -497,12 +500,19 @@ function CorridorStrata({ count }) {
         inst.position[1] + Math.sin(time * inst.drift + inst.phase) * 0.6,
         inst.position[2]
       )
+      // SAFE ZONE. A slab is the single most opaque thing that can end up
+      // behind a heading, and these are laid out in clusters the camera flies
+      // through - so some of them WILL cross the column without this.
+      pushOutOfColumn(dummy.position.x, dummy.position.y, dummy.position.z, safe.current, 1, 220, inst.scale[0] * 1.6)
+      dummy.position.copy(safe.current)
+
       dummy.rotation.set(
         inst.rotation[0],
         inst.rotation[1] + time * inst.drift * 0.02,
         inst.rotation[2]
       )
-      dummy.scale.set(inst.scale[0] * arrived, inst.scale[1] * arrived, inst.scale[2] * arrived)
+      const k = arrived * shrink
+      dummy.scale.set(inst.scale[0] * k, inst.scale[1] * k, inst.scale[2] * k)
       dummy.updateMatrix()
       mesh.setMatrixAt(i, dummy.matrix)
     }
@@ -543,6 +553,7 @@ function CorridorStrata({ count }) {
 /** Mid-depth debris: solid, lit, and slowly tumbling. Catches the key light. */
 function FloatingFragments({ count }) {
   const meshRef = useRef()
+  const fragSafe = useRef(new THREE.Vector3())
 
   const instances = useMemo(() => {
     const out = []
@@ -590,10 +601,19 @@ function FloatingFragments({ count }) {
         f.position[1] + Math.cos(time * f.bob + f.phase) * 0.5,
         f.position[2]
       )
-      const spin = time * f.spin
-      dummy.rotation.set(spin, spin * 1.3, spin * 0.6)
       // Fragments swell slightly with world energy — the environment reacting.
       const s = f.scale * (1 + energy * 0.25)
+
+      // SAFE ZONE. These orbit 16-34 units out, which is close enough that a
+      // handful sit inside the reading column at any moment. Individually they
+      // are small, but a steady trickle of them crossing a paragraph is the
+      // "particles passing through the interface" problem, so they clear it
+      // like every other near layer.
+      pushOutOfColumn(dummy.position.x, dummy.position.y, dummy.position.z, fragSafe.current, 1, undefined, s * 1.4)
+      dummy.position.copy(fragSafe.current)
+
+      const spin = time * f.spin
+      dummy.rotation.set(spin, spin * 1.3, spin * 0.6)
       dummy.scale.setScalar(s)
       dummy.updateMatrix()
       mesh.setMatrixAt(i, dummy.matrix)

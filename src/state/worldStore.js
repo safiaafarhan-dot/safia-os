@@ -34,4 +34,17 @@ export const useWorldStore = create((set) => ({
   /** 0..1 microphone amplitude, sampled at ~20fps for the waveform. */
   amplitude: 0,
   setAmplitude: (amplitude) => set({ amplitude }),
+
+  /**
+   * Bumped by any UI that wants the microphone opened.
+   *
+   * There must only ever be ONE SpeechRecognition instance on the page --
+   * a second one competes with the first for the audio device and both end up
+   * dropping results. VoiceControl owns the microphone, so the in-section
+   * transcription panels ask for it through this counter instead of starting
+   * their own. A counter rather than a boolean so repeated asks are distinct
+   * events and a stale `true` cannot re-open the mic on the next render.
+   */
+  micRequest: 0,
+  requestMic: () => set((s) => ({ micRequest: s.micRequest + 1 })),
 }))

@@ -33,7 +33,17 @@ function drawLabel(title, status, statusColor) {
   ctx.clearRect(0, 0, W, H)
   ctx.textAlign = 'center'
 
-  ctx.font = '700 44px Inter, system-ui, -apple-system, "Segoe UI", sans-serif'
+  // FIT THE TITLE TO THE TEXTURE. Drawn at a fixed 44px, "Distracted Driver
+  // Detection" overflowed the 512px canvas and was clipped at both ends -- it
+  // rendered as "istracted Driver Detectic". Shrink until it fits rather than
+  // truncating, so a long project name stays readable and stays whole.
+  const MAX_W = W - 32
+  let titleSize = 44
+  ctx.font = `700 ${titleSize}px Inter, system-ui, -apple-system, "Segoe UI", sans-serif`
+  while (ctx.measureText(title).width > MAX_W && titleSize > 20) {
+    titleSize -= 2
+    ctx.font = `700 ${titleSize}px Inter, system-ui, -apple-system, "Segoe UI", sans-serif`
+  }
   ctx.fillStyle = '#eef0f4'
   ctx.fillText(title, W / 2, 58)
 
@@ -58,7 +68,7 @@ function drawLabel(title, status, statusColor) {
   return tex
 }
 
-export default function Label3D({ position = [0, 0, 0], title, status, statusColor = '#a7aebd', scale = 1 }) {
+export default function Label3D({ position = [0, 0, 0], title, status, statusColor = '#a7aebd', scale = 0.1 }) {
   const spriteRef = useRef()
 
   const texture = useMemo(
@@ -73,7 +83,14 @@ export default function Label3D({ position = [0, 0, 0], title, status, statusCol
       ref={spriteRef}
       position={position}
       // Matches the canvas aspect (512x160) so the text is never stretched.
-      scale={[1.6 * scale, 0.5 * scale, 1]}
+      //
+      // These numbers are a FRACTION OF THE VIEWPORT, not world units: with
+      // sizeAttenuation off, three interprets sprite scale in normalised screen
+      // space. The original 1.6 x 0.5 therefore asked for a label 160% of the
+      // viewport wide, so all three project labels covered the canvas and each
+      // other. At 3.2 x 1 times a 0.1 default each label occupies about a third
+      // of the width, which clears the neighbouring modules at their spacing.
+      scale={[3.2 * scale, 1 * scale, 1]}
       renderOrder={20}
     >
       <spriteMaterial

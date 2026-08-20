@@ -14,7 +14,7 @@ const statusTone = (status) =>
 const AILab = () => {
   return (
     <section id="ailab" className="relative py-24 md:py-36 px-6 md:px-10 station">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto" data-safe>
         <SectionHeader
           index="05"
           label="EXPERIMENTAL"

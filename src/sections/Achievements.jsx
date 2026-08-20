@@ -8,7 +8,7 @@ const sorted = [...achievements].sort((a, b) => (a.date < b.date ? 1 : -1))
 const Achievements = () => {
   return (
     <section id="achievements" className="relative py-24 md:py-36 px-6 md:px-10 station">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto" data-safe>
         <SectionHeader index="06" label="MISSION LOG" title="ACHIEVEMENTS" />
 
         <div className="relative pl-8 md:pl-10">

@@ -30,7 +30,7 @@ const Projects = () => {
 
   return (
     <section id="projects" className="relative py-24 md:py-36 px-6 md:px-10 station">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto" data-safe>
         <SectionHeader
           index="04"
           label="WORK"

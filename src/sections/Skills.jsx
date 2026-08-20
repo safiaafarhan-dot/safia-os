@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useState, useMemo } from 'react'
 import { skillCategories } from '../data/skills'
 import { skillNodes, skillEdges, neighboursOf, projectsUsing } from '../data/skillGraph'
 import SectionHeader from '../components/ui/SectionHeader'
+import LiveTranscription from '../components/LiveTranscription'
 import { Reveal, RevealGroup, RevealItem } from '../components/ui/Reveal'
 import DeferredCanvas from '../components/ui/DeferredCanvas'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
@@ -28,12 +29,17 @@ const Skills = () => {
 
   return (
     <section id="skills" className="relative py-24 md:py-36 px-6 md:px-10 station">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto" data-safe>
         <SectionHeader
           index="02"
           label="TECHNOLOGY"
           title="SKILLS"
           description="A technology constellation. Every connection is drawn from a real project where those technologies were used together — not an arbitrary rating."
+        />
+
+        <LiveTranscription
+          className="mb-6 lg:mb-8"
+          hint="Say a technology name or “show projects” — the constellation and the page respond to the same commands."
         />
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-6 lg:gap-8">

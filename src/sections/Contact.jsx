@@ -55,7 +55,7 @@ const Contact = () => {
 
   return (
     <section id="contact" className="relative py-24 md:py-36 px-6 md:px-10 station station--dense">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl mx-auto" data-safe>
         <SectionHeader
           index="07"
           label="CONNECT"

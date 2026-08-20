@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
 import { STATIONS, sampleMood } from './stations'
 import { BH_POSITION, bhAttention } from './blackHoleState'
+import { beginKeepOut } from './safeZone'
 
 /**
  * Flies the camera down the corridor.
@@ -156,6 +157,13 @@ export default function CameraRig({ reducedMotion = false }) {
         camera.updateProjectionMatrix()
       }
     }
+
+    // The camera is final for this frame, so cache its matrices for the
+    // keep-out tests. This has to happen HERE, after every move, roll and fov
+    // change: running it earlier would evaluate the safe zone against last
+    // frame's view and objects would clear the text one frame late, which
+    // shows up as a visible twitch at the column edge while scrolling.
+    beginKeepOut(camera)
   })
 
   return null
