@@ -64,14 +64,15 @@ const vertexShader = /* glsl */ `
     gl_Position = projectionMatrix * mv;
 
     // Brighter when charged and when stirred, so both kinds of input register.
-    // Kept below the bloom threshold on purpose. Many small, very bright
-    // additive points upsample from the 1/6-resolution bloom chain as visible
-    // squares — the same artefact the reactor hit earlier. Dim motes plus the
-    // halo read as light without tripping it.
-    vAlpha = (0.10 + uDwell * 0.30) * (0.6 + uSpeed * 0.4);
+    // Visible, but still under the bloom threshold. These were dimmed hard
+    // earlier on the assumption that they were the source of the blocky
+    // squares in frame; they were not — that was the globular cluster, which
+    // used PointsMaterial and therefore drew square sprites. Corrected back to
+    // a level where resting the cursor actually reads as energy gathering.
+    vAlpha = (0.16 + uDwell * 0.46) * (0.62 + uSpeed * 0.38);
     vWarm = step(0.86, s);
 
-    gl_PointSize = clamp(aSize * (120.0 / max(-mv.z, 1.0)), 0.7, 3.4) * uPixelRatio;
+    gl_PointSize = clamp(aSize * (135.0 / max(-mv.z, 1.0)), 0.8, 4.2) * uPixelRatio;
   }
 `
 

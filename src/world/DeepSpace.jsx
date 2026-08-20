@@ -507,7 +507,7 @@ const DeepSpace = ({ tier }) => {
       <Nebulae clouds={clouds} noise={noise} />
 
       <Planet position={[-165, -70, -250]} radius={30} tint="#b3122e" ring={false} />
-      <Planet position={[210, 85, -560]} radius={46} tint="#c98a4b" ring />
+      <Planet position={[210, 85, -560]} radius={46} tint="#8ea6c8" ring />
 
       {tier.singularities && (
         <>

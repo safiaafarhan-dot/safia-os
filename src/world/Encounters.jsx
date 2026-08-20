@@ -56,7 +56,7 @@ const ENCOUNTERS = [
   { kind: 'binary', at: 0.95, off: [46, 22, -34], scale: 1.0, tint: '#ffd9b8' },
   { kind: 'moons', at: 1.35, off: [-38, -20, -28], scale: 1.0, tint: '#b8c6dd' },
   { kind: 'cluster', at: 1.75, off: [-56, 18, -30], scale: 1.0, tint: '#ffe6c4' },
-  { kind: 'gasgiant', at: 2.15, off: [52, 20, -40], scale: 1.0, tint: '#c98a4b' },
+  { kind: 'gasgiant', at: 2.15, off: [52, 20, -40], scale: 1.0, tint: '#7d93b8' },
   { kind: 'pulsar', at: 2.55, off: [40, -18, -32], scale: 1.0, tint: '#ff8f9f' },
   { kind: 'shards', at: 2.95, off: [-44, 12, -26], scale: 1.0, tint: '#9db3d4' },
   // The derelict sits last, on the approach to the city: the first clearly
@@ -210,6 +210,33 @@ function Derelict({ tint }) {
   )
 }
 
+const clusterVertex = /* glsl */ `
+  attribute float size;
+  uniform float uPixelRatio;
+  varying float vSize;
+  void main() {
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    gl_Position = projectionMatrix * mv;
+    vSize = size;
+    gl_PointSize = clamp(size * (90.0 / max(-mv.z, 1.0)), 0.7, 4.0) * uPixelRatio;
+  }
+`
+
+const clusterFragment = /* glsl */ `
+  uniform vec3 uColor;
+  varying float vSize;
+  void main() {
+    vec2 uv = gl_PointCoord - 0.5;
+    float d = length(uv);
+    if (d > 0.5) discard;
+    // Tight core plus a faint halo — the halo is what the bloom pass turns
+    // into a star rather than a lit pixel.
+    float core = smoothstep(0.3, 0.0, d);
+    float halo = smoothstep(0.5, 0.0, d) * 0.28;
+    gl_FragColor = vec4(uColor, (core + halo) * 0.75);
+  }
+`
+
 /** A globular cluster: a dense ball of unresolved stars. */
 function Cluster({ count, tint }) {
   const matRef = useRef()
@@ -229,22 +256,35 @@ function Cluster({ count, tint }) {
     return { positions, sizes }
   }, [count])
 
+  const clusterUniforms = useMemo(
+    () => ({ uColor: { value: new THREE.Color(tint) }, uPixelRatio: { value: 1 } }),
+    [tint]
+  )
+
+  useFrame((state) => {
+    if (matRef.current) matRef.current.uniforms.uPixelRatio.value = state.viewport.dpr || 1
+  })
+
   return (
     <points frustumCulled={false}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
         <bufferAttribute attach="attributes-size" count={count} array={sizes} itemSize={1} />
       </bufferGeometry>
-      <pointsMaterial
+      {/* Custom shader rather than PointsMaterial.
+          THREE.PointsMaterial with no map draws SQUARE sprites — that is what
+          made the cluster read as a grid of blocks rather than as stars, and
+          why it looked like a rendering fault. Every other point system in
+          this world already uses a circular discard; this one was the
+          exception. */}
+      <shaderMaterial
         ref={matRef}
-        color={tint}
-        size={1.6}
-        sizeAttenuation
+        uniforms={clusterUniforms}
+        vertexShader={clusterVertex}
+        fragmentShader={clusterFragment}
         transparent
-        opacity={0.9}
         depthWrite={false}
         blending={THREE.AdditiveBlending}
-        toneMapped={false}
       />
     </points>
   )
@@ -346,7 +386,7 @@ function GasGiant({ tint }) {
     <group>
       <mesh ref={bodyRef}>
         <sphereGeometry args={[13, 40, 28]} />
-        <meshStandardMaterial color="#3a2a1c" roughness={0.9} metalness={0.05} emissive={tint} emissiveIntensity={0.18} />
+        <meshStandardMaterial color="#1c2430" roughness={0.9} metalness={0.05} emissive={tint} emissiveIntensity={0.18} />
       </mesh>
       <mesh rotation={[Math.PI / 2.5, 0.3, 0]}>
         <ringGeometry args={[18, 27, 96]} />
