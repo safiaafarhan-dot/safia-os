@@ -59,11 +59,11 @@ const station = (i, id, { x = 0, y = 0, lookX = 0, lookY = 0, mood }) => ({
 export const STATIONS = [
   station(0, 'hero', {
     x: 0, y: 1.0, lookX: 0.0, lookY: 0.6,
-    mood: { fogNear: 14, fogFar: 90, accent: '#ff2d4d', ambient: 0.62, density: 1.0, light: 1.35, accentPower: 0.95, exposure: 1.16, bloom: 0.74, vignette: 0.92 },
+    mood: { fogNear: 14, fogFar: 118, accent: '#ff2d4d', ambient: 0.74, density: 0.82, light: 1.28, accentPower: 0.32, exposure: 1.16, bloom: 0.62, vignette: 0.78 },
   }),
   station(1, 'about', {
     x: -7, y: 4.5, lookX: -0.5, lookY: 0.9,
-    mood: { fogNear: 12, fogFar: 74, accent: '#b3122e', ambient: 0.56, density: 1.25, light: 1.1, accentPower: 0.5, exposure: 1.04, bloom: 0.52, vignette: 1.12 },
+    mood: { fogNear: 14, fogFar: 108, accent: '#b3122e', ambient: 0.72, density: 0.9, light: 1.22, accentPower: 0.34, exposure: 1.1, bloom: 0.58, vignette: 0.84 },
   }),
   station(2, 'skills', {
     x: 5, y: -4.0, lookX: 0.4, lookY: -0.4,
@@ -71,7 +71,7 @@ export const STATIONS = [
   }),
   station(3, 'experience', {
     x: 13, y: 2.0, lookX: 0.7, lookY: 0.3,
-    mood: { fogNear: 13, fogFar: 80, accent: '#b3122e', ambient: 0.54, density: 1.15, light: 1.15, accentPower: 0.44, exposure: 0.99, bloom: 0.46, vignette: 1.18 },
+    mood: { fogNear: 15, fogFar: 118, accent: '#b3122e', ambient: 0.62, density: 1.05, light: 1.22, accentPower: 0.4, exposure: 0.99, bloom: 0.52, vignette: 1.06 },
   }),
   station(4, 'projects', {
     x: 2, y: 8.0, lookX: 0.2, lookY: 0.8,
@@ -79,7 +79,7 @@ export const STATIONS = [
   }),
   station(5, 'ailab', {
     x: -11, y: 1.5, lookX: -0.6, lookY: 0.2,
-    mood: { fogNear: 11, fogFar: 68, accent: '#ff5a3c', ambient: 0.5, density: 1.4, light: 1.0, accentPower: 0.66, exposure: 1.02, bloom: 0.6, vignette: 1.24 },
+    mood: { fogNear: 13, fogFar: 104, accent: '#ff5a3c', ambient: 0.6, density: 1.25, light: 1.12, accentPower: 0.46, exposure: 1.02, bloom: 0.64, vignette: 1.1 },
   }),
   station(6, 'achievements', {
     x: -4, y: -6.0, lookX: -0.3, lookY: -0.5,

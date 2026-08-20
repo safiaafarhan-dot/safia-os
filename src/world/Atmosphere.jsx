@@ -397,7 +397,13 @@ function CorridorStrata({ count }) {
     const CLUSTERS = Math.max(5, Math.round(count / 12))
     const centres = []
     for (let c = 0; c < CLUSTERS; c++) {
-      const t = (c + 0.5) / CLUSTERS
+      // Weighted into the SECOND HALF of the flight. These are anodised metal
+      // slabs several units across - the heaviest material in the world - and
+      // spreading them evenly along the path put a scrapyard beside the title
+      // before the visitor had read it. The intro carries stars, dust and gas;
+      // structure is something the journey travels far enough to find.
+      const PATH_START = 0.48
+      const t = PATH_START + ((c + 0.5) / CLUSTERS) * (1 - PATH_START)
       const si = Math.min(STATIONS.length - 1, Math.floor(t * (STATIONS.length - 1)))
       const sj = Math.min(STATIONS.length - 1, si + 1)
       const f = t * (STATIONS.length - 1) - si
@@ -460,7 +466,21 @@ function CorridorStrata({ count }) {
   useFrame(() => {
     const mesh = meshRef.current
     if (!mesh) return
-    const { time } = scrollState()
+    const { time, station } = scrollState()
+
+    // Held out of the intro. Weighting the cluster CENTRES toward the far half
+    // of the path was not enough on its own: each cluster is pushed up to 170
+    // units off the path in a random direction, so a late cluster can still
+    // land beside the opening frame. This is the guarantee - before the matter
+    // band these collapse to nothing, and the whole layer costs one draw call
+    // of degenerate geometry rather than a frame full of grey slabs behind the
+    // title.
+    const arrived = THREE.MathUtils.smoothstep(station, 3.2, 4.2)
+    if (arrived <= 0.001) {
+      if (mesh.visible) mesh.visible = false
+      return
+    }
+    mesh.visible = true
 
     // NOTE: these used to fade out against blackHoleState.presence, on the
     // premise that the corridor "gave way" as a transient black hole took the
@@ -482,7 +502,7 @@ function CorridorStrata({ count }) {
         inst.rotation[1] + time * inst.drift * 0.02,
         inst.rotation[2]
       )
-      dummy.scale.set(inst.scale[0], inst.scale[1], inst.scale[2])
+      dummy.scale.set(inst.scale[0] * arrived, inst.scale[1] * arrived, inst.scale[2] * arrived)
       dummy.updateMatrix()
       mesh.setMatrixAt(i, dummy.matrix)
     }
@@ -632,24 +652,37 @@ function LightShafts({ reducedMotion }) {
 
   const shafts = useMemo(
     () =>
-      STATIONS.flatMap((s, i) => [
-        {
-          key: `${s.id}-a`,
-          position: [s.position[0] - 7, 6, s.position[2] - 8],
-          rotation: [0, 0.4, 0.22],
-          scale: [7, 26, 1],
-          color: s.mood.accent,
-          phase: i * 1.7,
-        },
-        {
-          key: `${s.id}-b`,
-          position: [s.position[0] + 8, 5, s.position[2] - 20],
-          rotation: [0, -0.5, -0.3],
-          scale: [5.5, 22, 1],
-          color: s.mood.accent,
-          phase: i * 2.3 + 0.9,
-        },
-      ]),
+      STATIONS.flatMap((s, i) => {
+        // The shafts take each station's accent, which is crimson everywhere.
+        // Over the intro that put two glowing red wedges directly behind the
+        // title and was most of why the opening read as a red room rather than
+        // as space. The first two stations get a cool cosmic tone instead and
+        // sit dimmer, so the intro is lit like glass and the crimson identity
+        // arrives with the rest of the world.
+        const intro = i <= 1
+        const color = intro ? '#4f93c6' : s.mood.accent
+        const gain = intro ? 0.55 : 1
+        return [
+          {
+            key: `${s.id}-a`,
+            position: [s.position[0] - 7, 6, s.position[2] - 8],
+            rotation: [0, 0.4, 0.22],
+            scale: [7, 26, 1],
+            color,
+            gain,
+            phase: i * 1.7,
+          },
+          {
+            key: `${s.id}-b`,
+            position: [s.position[0] + 8, 5, s.position[2] - 20],
+            rotation: [0, -0.5, -0.3],
+            scale: [5.5, 22, 1],
+            color,
+            gain,
+            phase: i * 2.3 + 0.9,
+          },
+        ]
+      }),
     []
   )
 
@@ -661,7 +694,7 @@ function LightShafts({ reducedMotion }) {
       if (!mat?.uniforms) return
       // Independent slow pulses so the shafts never beat in unison.
       const pulse = 0.5 + 0.5 * Math.sin(time * 0.22 + shafts[i].phase)
-      mat.uniforms.uOpacity.value = (0.035 + pulse * 0.05) * (1 + energy * 0.6)
+      mat.uniforms.uOpacity.value = (0.035 + pulse * 0.05) * (1 + energy * 0.6) * shafts[i].gain
     })
   })
 

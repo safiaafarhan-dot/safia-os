@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
 import { STATIONS } from './stations'
 import { chargedInfluenceAt, cursorField } from './cursorFieldState'
+import { getNoiseTexture } from './noise'
 
 /**
  * ENCOUNTERS — the things you find by going deeper.
@@ -52,18 +53,58 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v))
  * finding it on the way there is a journey.
  */
 const ENCOUNTERS = [
-  { kind: 'belt', at: 0.55, off: [-52, 14, -30], scale: 1.0, tint: '#8fa3c2' },
-  { kind: 'binary', at: 0.95, off: [46, 22, -34], scale: 1.0, tint: '#ffd9b8' },
-  { kind: 'moons', at: 1.35, off: [-38, -20, -28], scale: 1.0, tint: '#b8c6dd' },
-  { kind: 'cluster', at: 1.75, off: [-56, 18, -30], scale: 1.0, tint: '#ffe6c4' },
-  { kind: 'gasgiant', at: 2.15, off: [52, 20, -40], scale: 1.0, tint: '#7d93b8' },
-  { kind: 'pulsar', at: 2.55, off: [40, -18, -32], scale: 1.0, tint: '#ff8f9f' },
-  { kind: 'shards', at: 2.95, off: [-44, 12, -26], scale: 1.0, tint: '#9db3d4' },
-  // The derelict sits last, on the approach to the city: the first clearly
-  // BUILT thing out here, so the transition from wilderness to architecture is
-  // foreshadowed rather than abrupt.
-  { kind: 'derelict', at: 3.45, off: [44, 10, -36], scale: 1.2, tint: '#5d6a83' },
+  // The journey is staged so that nothing shows its whole hand at the start.
+  // Each band introduces a new CLASS of thing, and the material weight builds:
+  // light first, mass last. Placing a rock field beside the title, as this list
+  // used to, spent the most physical objects in the world before the visitor
+  // had finished reading the name.
+  //
+  //   0.0-1.4  intro          light, glass, cosmic - nothing physical
+  //   1.4-2.6  deeper space   energy and distance
+  //   2.6-3.9  worlds         planets, then crystal
+  //   3.9-5.0  matter         stone, then built metal
+  //   5.0-6.0  structure      the middle, where the black hole used to be
+  //   6.0-7.0  deeper worlds  opening back out toward contact
+
+  /* -- INTRO. Clean, spatial, luminous. The title has to be the heaviest thing
+        on screen here, so everything in this band is weightless: stars, a dust
+        veil, and one cool gas bloom well off-axis. No mass, no silhouettes
+        cutting across the reading column. -- */
+  { kind: 'cluster', at: 0.45, off: [-60, 18, -38], scale: 1.0, tint: '#cfe0f5' },
+  { kind: 'dust', at: 0.85, off: [36, -8, -32], scale: 1.0, tint: '#9dc0e4' },
+  { kind: 'nebula', at: 1.25, off: [68, 20, -54], scale: 0.95, tint: '#3f7fb5', outer: '#0a121c' },
+
+  /* -- DEEPER UNIVERSE. Still weightless, but further out and more energetic,
+        so distance starts to read as something being travelled into. -- */
+  { kind: 'binary', at: 1.7, off: [46, 22, -34], scale: 1.0, tint: '#ffd9b8' },
+  { kind: 'pulsar', at: 2.1, off: [-42, -18, -32], scale: 1.0, tint: '#ff8f9f' },
+  { kind: 'dust', at: 2.4, off: [-32, 8, -34], scale: 1.0, tint: '#8fb6dd' },
+
+  /* -- WORLDS. First solid bodies, then the crystal that bridges into matter. -- */
+  { kind: 'moons', at: 2.8, off: [-38, -20, -28], scale: 1.0, tint: '#b8c6dd' },
+  { kind: 'gasgiant', at: 3.2, off: [52, 20, -40], scale: 1.0, tint: '#7d93b8' },
+  { kind: 'shards', at: 3.6, off: [-44, 12, -26], scale: 1.0, tint: '#9db3d4' },
+
+  /* -- MATTER. The heavy band. Stone first, then the first clearly BUILT thing,
+        so the shift from wilderness to architecture is foreshadowed rather than
+        abrupt. -- */
+  { kind: 'belt', at: 4.1, off: [-52, 14, -30], scale: 1.0, tint: '#8fa3c2' },
+  { kind: 'derelict', at: 4.6, off: [44, 10, -36], scale: 1.2, tint: '#5d6a83' },
+
+  /* -- THE MIDDLE. Stations 5-6 were left almost empty when the black hole that
+        used to occupy exactly this stretch was removed, which is why the middle
+        read as flat rather than deep. These fill it with distance cues rather
+        than with light: gas, dust and stars placed far out, so the eye has
+        something to measure the space against. -- */
+  { kind: 'nebula', at: 5.1, off: [-78, 22, -56], scale: 1.0, tint: '#8e1f33' },
+  { kind: 'cluster', at: 5.6, off: [62, -24, -38], scale: 1.0, tint: '#dfe7f2' },
+
+  /* -- DEEPER WORLDS. Opening back out on the approach to contact. -- */
+  { kind: 'dust', at: 6.1, off: [-30, 6, -34], scale: 1.0, tint: '#7d93b8' },
+  { kind: 'nebula', at: 6.5, off: [70, 18, -50], scale: 0.9, tint: '#6d1730' },
+  { kind: 'cluster', at: 6.9, off: [-66, 26, -40], scale: 0.85, tint: '#c9d6ea' },
 ]
+
 
 /** World position for an encounter, interpolated along the station path. */
 function positionFor(e) {
@@ -439,11 +480,24 @@ function FloatingField({ count }) {
   useFrame((state) => {
     const mesh = meshRef.current
     if (!mesh) return
-    const { time } = scrollState()
+    const { time, station } = scrollState()
     const camZ = state.camera.position.z
+
+    // These are metal fragments, so they belong to the MATTER band, not to
+    // the intro. Anchored to the camera, they would otherwise travel with it
+    // and put mass over the title from the very first frame.
+    //
+    // The early journey is NOT emptied, though: distant bits stay, at reduced
+    // scale. Motion is what makes the opening feel alive, and killing the
+    // layer outright trades a busy frame for a dead one. Only the near, large
+    // fragments — the ones that read as physical objects rather than as
+    // parallax — wait for the band where matter is the subject.
+    const arrived = THREE.MathUtils.smoothstep(station, 3.4, 4.4)
 
     for (let i = 0; i < bits.length; i++) {
       const b = bits[i]
+      const distant = THREE.MathUtils.smoothstep(b.radius, 34, 70)
+      const presence = arrived + (1 - arrived) * distant * 0.28
       const travel = (b.offset + time * b.speed) % 1
       let px = Math.cos(b.angle) * b.radius
       let py = Math.sin(b.angle) * b.radius * 0.45 + b.yBias
@@ -470,7 +524,7 @@ function FloatingField({ count }) {
       dummy.position.set(px, py, pz)
       dummy.rotation.set(b.angle + spin, b.angle * 1.7, spin * 0.5)
       // Charged bodies swell slightly — energy, not just displacement.
-      dummy.scale.setScalar(b.size * (1 + inf * 0.5))
+      dummy.scale.setScalar(b.size * (1 + inf * 0.5) * presence)
       dummy.updateMatrix()
       mesh.setMatrixAt(i, dummy.matrix)
     }
@@ -485,6 +539,185 @@ function FloatingField({ count }) {
   )
 }
 
+
+/* ------------------------------------------------------------- nebula ----- */
+
+const nebulaVertex = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+const nebulaFragment = /* glsl */ `
+  varying vec2 vUv;
+  uniform sampler2D uNoise;
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uOpacity;
+  uniform vec3 uInner;
+  uniform vec3 uOuter;
+
+  void main() {
+    // Two samples drifting against each other so the gas churns rather than
+    // scrolls. One sample alone always reads as a moving texture.
+    vec2 a = vUv * 1.15 + vec2(uTime * 0.0028, uTime * 0.0013) + uSeed;
+    vec2 b = vUv * 2.1 - vec2(uTime * 0.0019, -uTime * 0.0009) + uSeed * 1.6;
+    float n = texture2D(uNoise, a).r * 0.62 + texture2D(uNoise, b).r * 0.48;
+
+    float r = length(vUv - 0.5) * 2.0;
+    float falloff = smoothstep(1.0, 0.05, r);
+    // Contrasted into wisps. A flat cloud reads as fog on the lens; wisps read
+    // as something with structure at a distance.
+    float wisp = smoothstep(0.44, 0.96, n) * falloff;
+
+    vec3 col = mix(uOuter, uInner, smoothstep(0.38, 0.9, n));
+    gl_FragColor = vec4(col, wisp * uOpacity);
+  }
+`
+
+/**
+ * A faint crimson gas bloom.
+ *
+ * This is the main thing lifting the middle of the journey out of blackness.
+ * It works by ADDING structure at distance rather than by raising brightness:
+ * the opacity ceiling is deliberately low, so it reads as depth in the dark
+ * rather than as a red wash over the frame. A flat overlay would have been far
+ * easier and would have destroyed the contrast the rest of the world depends
+ * on.
+ */
+function Nebula({ tint, outer, noise }) {
+  const meshRef = useRef()
+  const seed = useMemo(() => Math.random() * 10, [])
+
+  const uniforms = useMemo(
+    () => ({
+      uNoise: { value: noise },
+      uTime: { value: 0 },
+      uSeed: { value: seed },
+      uOpacity: { value: 0 },
+      uInner: { value: new THREE.Color(tint) },
+      // Defaults to a dark maroon so crimson blooms stay inside the brand's
+      // colour language, but the intro passes a cool near-black instead: a
+      // blue gas cloud fading through maroon reads as dirty, not as distance.
+      uOuter: { value: new THREE.Color(outer || '#160a12') },
+    }),
+    [noise, seed, tint, outer]
+  )
+
+  useFrame((state) => {
+    const m = meshRef.current
+    if (!m || !m.visible) return
+    const { time, energy } = scrollState()
+    m.quaternion.copy(state.camera.quaternion)
+    const u = m.material.uniforms
+    u.uTime.value = time
+    // Breathing, and a small lift on interaction so the field feels connected
+    // to the rest of the world rather than painted on behind it.
+    u.uOpacity.value = (0.11 + 0.035 * Math.sin(time * 0.09 + seed)) * (1 + energy * 0.3)
+  })
+
+  return (
+    <mesh ref={meshRef} frustumCulled={false} renderOrder={-450}>
+      <planeGeometry args={[150, 150]} />
+      <shaderMaterial
+        uniforms={uniforms}
+        vertexShader={nebulaVertex}
+        fragmentShader={nebulaFragment}
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        fog={false}
+      />
+    </mesh>
+  )
+}
+
+/* --------------------------------------------------------------- dust ----- */
+
+const dustVertex = /* glsl */ `
+  attribute float aSize;
+  attribute float aPhase;
+  uniform float uTime;
+  uniform float uPixelRatio;
+  varying float vFade;
+  void main() {
+    vec3 p = position;
+    // Barely-there drift. Cosmic dust should register as texture, never as
+    // motion the eye can follow.
+    p.x += sin(uTime * 0.05 + aPhase) * 2.4;
+    p.y += cos(uTime * 0.04 + aPhase * 1.7) * 1.8;
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    gl_Position = projectionMatrix * mv;
+    vFade = 0.5 + 0.5 * sin(uTime * 0.2 + aPhase * 3.0);
+    gl_PointSize = clamp(aSize * (70.0 / max(-mv.z, 1.0)), 0.6, 2.6) * uPixelRatio;
+  }
+`
+
+const dustFragment = /* glsl */ `
+  uniform vec3 uColor;
+  varying float vFade;
+  void main() {
+    vec2 uv = gl_PointCoord - 0.5;
+    float d = length(uv);
+    if (d > 0.5) discard;
+    gl_FragColor = vec4(uColor, smoothstep(0.5, 0.0, d) * vFade * 0.3);
+  }
+`
+
+/** A wide, sparse veil of cosmic dust — texture in the empty middle distance. */
+function Dust({ count, tint }) {
+  const matRef = useRef()
+
+  const { positions, sizes, phases } = useMemo(() => {
+    const positions = new Float32Array(count * 3)
+    const sizes = new Float32Array(count)
+    const phases = new Float32Array(count)
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = (hash(i, 31) - 0.5) * 150
+      positions[i * 3 + 1] = (hash(i, 32) - 0.5) * 80
+      positions[i * 3 + 2] = (hash(i, 33) - 0.5) * 150
+      sizes[i] = 0.5 + Math.pow(hash(i, 34), 2.5) * 2.2
+      phases[i] = hash(i, 35) * 6.283
+    }
+    return { positions, sizes, phases }
+  }, [count])
+
+  const uniforms = useMemo(
+    () => ({ uTime: { value: 0 }, uPixelRatio: { value: 1 }, uColor: { value: new THREE.Color(tint) } }),
+    [tint]
+  )
+
+  useFrame((state) => {
+    const m = matRef.current
+    if (!m) return
+    m.uniforms.uTime.value = scrollState().time
+    m.uniforms.uPixelRatio.value = state.viewport.dpr || 1
+  })
+
+  return (
+    <points frustumCulled={false}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-aSize" count={count} array={sizes} itemSize={1} />
+        <bufferAttribute attach="attributes-aPhase" count={count} array={phases} itemSize={1} />
+      </bufferGeometry>
+      <shaderMaterial
+        ref={matRef}
+        uniforms={uniforms}
+        vertexShader={dustVertex}
+        fragmentShader={dustFragment}
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        fog={false}
+      />
+    </points>
+  )
+}
+
+/* ------------------------------------------------------------------ root -- */
 /* ------------------------------------------------------------ assembly ---- */
 
 function Encounter({ spec, tier }) {
@@ -523,6 +756,10 @@ function Encounter({ spec, tier }) {
         return <Shards count={tier.shardCount} tint={spec.tint} />
       case 'gasgiant':
         return <GasGiant tint={spec.tint} />
+      case 'nebula':
+        return <Nebula tint={spec.tint} outer={spec.outer} noise={getNoiseTexture()} />
+      case 'dust':
+        return <Dust count={tier.dustVeil} tint={spec.tint} />
       default:
         return null
     }

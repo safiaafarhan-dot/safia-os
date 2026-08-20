@@ -320,18 +320,29 @@ function Planet({ position, radius, tint, ring }) {
  * of a KIND of thing that lives in this universe rather than as a single
  * effect bolted on, and so the deep field has structure worth noticing.
  */
-function Singularity({ position, radius, tilt }) {
+function Singularity({ position, radius, tilt, from = 0 }) {
+  const groupRef = useRef()
   const diskRef = useRef()
   const ringRef = useRef()
 
   useFrame((state) => {
     const s = scrollState()
+    // These are miniature black holes, and the black hole was cut from this
+    // experience deliberately. They survive as deep-space features, but a
+    // dark disc ringed in crimson sitting beside the title is the single most
+    // recognisable leftover of the removed sequence - so they stay asleep
+    // until the journey is well past the intro.
+    const g = groupRef.current
+    if (g) {
+      g.visible = s.station > from
+      if (!g.visible) return
+    }
     if (diskRef.current) diskRef.current.rotation.z = s.time * 0.06
     if (ringRef.current) ringRef.current.quaternion.copy(state.camera.quaternion)
   })
 
   return (
-    <group position={position}>
+    <group ref={groupRef} position={position} visible={false}>
       <mesh renderOrder={3}>
         <sphereGeometry args={[radius, 24, 16]} />
         <meshBasicMaterial color="#000000" fog={false} toneMapped={false} />
@@ -415,6 +426,13 @@ function Foreground({ count }) {
     const camZ = state.camera.position.z
     const SLAB = 90
 
+    // Stone-like slabs, and the nearest and largest silhouettes in the world.
+    // They follow the camera, so without this they cut straight across the
+    // title from the first frame. Unlike the floating field there is no
+    // "distant" subset worth keeping — every shard in this layer is close by
+    // construction — so the whole layer waits for the matter band.
+    const arrived = THREE.MathUtils.smoothstep(s.station, 3.5, 4.5)
+
     // NOTE: these used to fade out against blackHoleState.presence, on the
     // premise that the corridor "gave way" as a transient black hole took the
     // frame. The hole is now a permanent deep-space feature whose presence
@@ -437,7 +455,7 @@ function Foreground({ count }) {
         z
       )
       dummy.rotation.set(f.phase, f.phase * 1.3 + s.time * f.spin * 0.1, f.phase * 0.7)
-      dummy.scale.set(...f.scale)
+      dummy.scale.set(f.scale[0] * arrived, f.scale[1] * arrived, f.scale[2] * arrived)
       dummy.updateMatrix()
       mesh.setMatrixAt(i, dummy.matrix)
     }
@@ -506,13 +524,18 @@ const DeepSpace = ({ tier }) => {
 
       <Nebulae clouds={clouds} noise={noise} />
 
-      <Planet position={[-165, -70, -250]} radius={30} tint="#b3122e" ring={false} />
+      <Planet position={[-235, -84, -690]} radius={30} tint="#b3122e" ring={false} />
       <Planet position={[210, 85, -560]} radius={46} tint="#8ea6c8" ring />
 
       {tier.singularities && (
         <>
-          <Singularity position={[-95, 46, -150]} radius={2.6} tilt={[Math.PI / 2.3, 0.3, 0]} />
-          <Singularity position={[150, -38, -430]} radius={3.4} tilt={[Math.PI / 2.7, -0.5, 0.2]} />
+          {/* Moved well down the timeline. At z -150 this sat inside the
+              opening frame as a small bright ring with a dark centre, right
+              beside the title - the last visible remnant of the black hole
+              that was taken out, and the thing most likely to read as a stray
+              coil of wire over the name. It stays in the world, just later. */}
+          <Singularity position={[-140, 58, -560]} radius={2.6} tilt={[Math.PI / 2.3, 0.3, 0]} from={4.6} />
+          <Singularity position={[170, -44, -640]} radius={3.4} tilt={[Math.PI / 2.7, -0.5, 0.2]} from={5.2} />
         </>
       )}
 
