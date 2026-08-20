@@ -14,38 +14,54 @@ import { STATION_SPACING } from './stations.js'
  * and look at it, which is what a camera operator would do and what makes the
  * approach read as discovery rather than as something sliding into shot.
  */
-export const BH_POSITION = new THREE.Vector3(10, 4, -7.5 * STATION_SPACING)
-
-/** Event horizon radius, in world units. */
-export const BH_HORIZON_R = 11
+/**
+ * Solved, not chosen: scripts/trace-flight.mjs unprojects the desired screen
+ * position back into the world, so this is exactly the point that lands at
+ * ndc(-0.42, 0.20) — upper left, opposite the guardian — 700 units from the
+ * opening camera. Nudging a position by hand and re-checking in a browser
+ * costs a round trip per attempt and never quite converges.
+ */
+export const BH_POSITION = new THREE.Vector3(-324, 35, -620)
 
 /**
- * How much the camera is watching it, 0..1.
+ * Event horizon radius. Enormous, because it is 700 units away and has to read
+ * as a deep-space feature rather than a nearby object. At this size and range
+ * the disk covers roughly the same share of frame as the guardian does, on the
+ * opposite side — which is the balance that makes it create scale instead of
+ * dominating.
+ */
+export const BH_HORIZON_R = 40
+
+/**
+ * How much the camera keeps it composed, 0..1.
  *
- * Rises from station 2.2 as the anomaly becomes recognisable, holds through
- * the climax, releases after 6.2 so the hole falls behind and the universe
- * opens onto whatever is next. Never reaches 1: the rig keeps a little of its
- * own heading throughout, so it reads as a camera glancing across rather than
- * as a turret locked on.
+ * It never drops to zero, because the hole is now a PERMANENT feature of this
+ * universe rather than an event the journey passes. Without a floor the
+ * curving path swings it out of frame within half a station - the heading
+ * changes by up to 30 degrees between stations, which is most of the frame
+ * width.
+ *
+ * It also never reaches 1: the rig keeps some of its own heading throughout,
+ * so it reads as a camera that knows the hole is there rather than a turret
+ * locked onto it. Position and banking are untouched either way - only the
+ * aim is influenced.
  */
 const smoothstep = (e0, e1, x) => {
   const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)))
   return t * t * (3 - 2 * t)
 }
 
-export const bhAttention = (station) =>
-  smoothstep(1.4, 3.4, station) * (1 - smoothstep(6.2, 7.0, station)) * 0.92
+export const bhAttention = (station) => 0.5 + 0.42 * smoothstep(1.4, 3.6, station)
 
 /**
  * How present the hole is in the world, 0..1.
  *
- * Deliberately WIDER than the attention window at the front: the anomaly is
- * faintly there before the camera turns toward it, so the visitor can notice
- * it first. That is the difference between discovering something and being
- * shown it.
+ * Starts over half strength: it is in the opening frame by design, as a deep
+ * space feature the universe is built around rather than something discovered
+ * later. It still intensifies through the first third, so the journey has
+ * somewhere to go.
  */
-export const bhPresence = (station) =>
-  smoothstep(1.2, 4.2, station) * (1 - smoothstep(6.0, 7.0, station))
+export const bhPresence = (station) => 0.55 + 0.45 * smoothstep(0.5, 3.0, station)
 
 /**
  * Where the black hole currently is on screen, and how hard it is bending

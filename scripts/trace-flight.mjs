@@ -43,7 +43,7 @@ const bias = (stationFloat, axis) => {
 const span = STATIONS.length - 1
 
 /** Camera state at a fractional station index, exactly as the rig builds it. */
-export function cameraAt(station) {
+export function cameraAt(station, bhPos = BH_POSITION, attScale = 1) {
   const t = Math.max(0, Math.min(1, station / span))
   const pos = pathCurve.getPoint(t, new THREE.Vector3())
   const ahead = pathCurve.getPoint(Math.min(1, t + 0.045), new THREE.Vector3())
@@ -62,10 +62,10 @@ export function cameraAt(station) {
     .addScaledVector(up, bias(station, 1) * 6)
 
   // Same attention blend as the rig: the camera turns to watch the hole.
-  const attention = bhAttention(station)
+  const attention = bhAttention(station) * attScale
   if (attention > 0.001) {
-    const bhDist = pos.distanceTo(BH_POSITION)
-    const aim = BH_POSITION.clone().addScaledVector(right, bhDist * 0.171)
+    const bhDist = pos.distanceTo(bhPos)
+    const aim = bhPos.clone().addScaledVector(right, bhDist * 0.33).addScaledVector(up, bhDist * -0.07)
     look.lerp(aim, attention)
   }
 
@@ -78,8 +78,8 @@ export function cameraAt(station) {
 }
 
 /** Where `target` sits in frame at this station. */
-export function frameOf(station, target) {
-  const { pos, tangent, cam } = cameraAt(station)
+export function frameOf(station, target, attScale = 1) {
+  const { pos, tangent, cam } = cameraAt(station, target, attScale)
   const ndc = target.clone().project(cam)
   const toTarget = target.clone().sub(pos)
   const dist = toTarget.length()
@@ -90,15 +90,36 @@ export function frameOf(station, target) {
   return { ndc, dist, forward, halfH }
 }
 
+
+/**
+ * SOLVE: where must a body sit to land at a given spot in frame?
+ *
+ * The inverse of the report above, and the reason this file exists. Composing
+ * by nudging a world position and re-checking in a browser costs a round trip
+ * per attempt and never converges; unprojecting the desired screen position
+ * back into the world answers it exactly, in one step.
+ */
+export function solvePosition(station, ndcX, ndcY, dist) {
+  const { pos, cam } = cameraAt(station)
+  const ray = new THREE.Vector3(ndcX, ndcY, 0.5).unproject(cam).sub(pos).normalize()
+  return pos.clone().addScaledVector(ray, dist)
+}
+
+/** Apparent radius of a body, as a fraction of half the frame height. */
+export function apparentRadius(station, target, radius) {
+  const { dist } = frameOf(station, target)
+  return radius / (Math.tan((FOV * Math.PI) / 360) * dist)
+}
+
 const HORIZON_R = BH_HORIZON_R
 
-function report(target, label) {
+function report(target, label, radius = HORIZON_R, attScale = 1) {
   console.log(`\n=== ${label}  target (${target.x}, ${target.y}, ${target.z}) ===`)
   console.log(' st |  cam position        | dist | infront |   ndc.x   ndc.y | horizon/halfH | in frame')
   for (let st = 0; st <= span; st += 0.5) {
-    const { ndc, dist, forward, halfH } = frameOf(st, target)
-    const { pos } = cameraAt(st)
-    const rel = HORIZON_R / halfH
+    const { ndc, dist, forward, halfH } = frameOf(st, target, attScale)
+    const { pos } = cameraAt(st, target, attScale)
+    const rel = radius / halfH
     const inFrame = forward > 0 && Math.abs(ndc.x) < 1 && Math.abs(ndc.y) < 1
     const pres = bhPresence(st)
     console.log(
@@ -121,7 +142,15 @@ STATIONS.forEach((s) =>
 )
 
 const argv = process.argv.slice(2)
-if (argv.length === 3) {
+if (argv[0] === 'solve') {
+  // solve <station> <ndcX> <ndcY> <dist> <radius>
+  const [, st, nx, ny, d, r] = argv.map((v, i) => (i === 0 ? v : +v))
+  const attScale = argv[6] === undefined ? 1 : +argv[6]
+  const p = solvePosition(st, nx, ny, d)
+  console.log('SOLVED position:', p.toArray().map((n) => +n.toFixed(1)))
+  console.log('apparent radius at that station:', apparentRadius(st, p, r).toFixed(3))
+  report(p, `SOLVED st${st} ndc(${nx},${ny}) dist ${d} radius ${r} attScale ${attScale}`, r, attScale)
+} else if (argv.length === 3) {
   report(new THREE.Vector3(+argv[0], +argv[1], +argv[2]), 'CANDIDATE')
 } else {
   report(BH_POSITION, 'BLACK HOLE (shared constant)')

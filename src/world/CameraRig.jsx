@@ -114,9 +114,17 @@ export default function CameraRig({ reducedMotion = false }) {
     const attention = bhAttention(s.station)
     if (attention > 0.001) {
       const bhDist = tmp.current.distanceTo(BH_POSITION)
+      // Offsets are fractions of the distance, so the composition holds as the
+      // hole grows. Right pushes it LEFT in frame, clear of the reading
+      // column; negative up lifts it, clear of the body copy. The headline
+      // still crosses the shadow, which is deliberate - white type against the
+      // one genuinely black thing in the frame is the best contrast available,
+      // and the overlap is what makes the hole read as being BEHIND the text
+      // rather than beside it.
       bhAim.current
         .copy(BH_POSITION)
-        .addScaledVector(right.current, bhDist * 0.171)
+        .addScaledVector(right.current, bhDist * 0.33)
+        .addScaledVector(up.current, bhDist * -0.07)
       lookTarget.current.lerp(bhAim.current, attention)
     }
 

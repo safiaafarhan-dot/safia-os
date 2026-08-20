@@ -462,13 +462,11 @@ function CorridorStrata({ count }) {
     if (!mesh) return
     const { time } = scrollState()
 
-    // THE CORRIDOR GIVES WAY. As the black hole takes the frame, the
-    // architecture thins out and goes - so the approach reads as leaving the
-    // structure behind and falling into open space, rather than as a hole
-    // parked awkwardly among some girders. This is the transition.
-    const bh = blackHoleState.presence
-    mesh.material.opacity = 1 - bh * 0.92
-    mesh.material.transparent = bh > 0.01
+    // NOTE: these used to fade out against blackHoleState.presence, on the
+    // premise that the corridor "gave way" as a transient black hole took the
+    // frame. The hole is now a permanent deep-space feature whose presence
+    // never returns to zero, so that fade would have erased the midground for
+    // the entire journey. The layer stays.
 
     for (let i = 0; i < instances.length; i++) {
       const inst = instances[i]
@@ -559,9 +557,11 @@ function FloatingFragments({ count }) {
     const mesh = meshRef.current
     if (!mesh) return
     const { time, energy } = scrollState()
-    const bh = blackHoleState.presence
-    mesh.material.opacity = 1 - bh * 0.9
-    mesh.material.transparent = bh > 0.01
+    // NOTE: these used to fade out against blackHoleState.presence, on the
+    // premise that the corridor "gave way" as a transient black hole took the
+    // frame. The hole is now a permanent deep-space feature whose presence
+    // never returns to zero, so that fade would have erased the midground for
+    // the entire journey. The layer stays.
 
     for (let i = 0; i < instances.length; i++) {
       const f = instances[i]

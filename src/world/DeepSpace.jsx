@@ -469,11 +469,11 @@ function Foreground({ count }) {
     const camZ = state.camera.position.z
     const SLAB = 90
 
-    // Fade out through the black hole: the corridor gives way there, and
-    // foreground debris would contradict that.
-    const bh = blackHoleState.presence
-    mesh.material.opacity = 1 - bh * 0.9
-    mesh.material.transparent = bh > 0.01
+    // NOTE: these used to fade out against blackHoleState.presence, on the
+    // premise that the corridor "gave way" as a transient black hole took the
+    // frame. The hole is now a permanent deep-space feature whose presence
+    // never returns to zero, so that fade would have erased the midground for
+    // the entire journey. The layer stays.
 
     for (let i = 0; i < shards.length; i++) {
       const f = shards[i]
