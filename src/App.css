@@ -1,0 +1,227 @@
+/* ============================================================
+   SAFIA.OS — shared surface, control and HUD primitives
+   Palette source of truth lives in index.css @theme.
+   ============================================================ */
+
+.text-gradient {
+  background: linear-gradient(135deg, #e8e6e1 0%, #b3122e 130%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* --- Surfaces ------------------------------------------------ */
+
+.glass {
+  background: rgba(22, 22, 24, 0.62);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(168, 168, 173, 0.08);
+}
+
+/* Machined panel: the standard card in the system UI. */
+.panel {
+  position: relative;
+  background: linear-gradient(160deg, rgba(30, 30, 33, 0.72) 0%, rgba(16, 16, 18, 0.72) 100%);
+  border: 1px solid rgba(168, 168, 173, 0.09);
+  backdrop-filter: blur(12px);
+  transition: border-color 0.45s ease, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.5s ease;
+}
+
+.panel:hover {
+  border-color: rgba(179, 18, 46, 0.42);
+  box-shadow: 0 0 0 1px rgba(179, 18, 46, 0.06), 0 18px 50px -20px rgba(0, 0, 0, 0.9);
+}
+
+/* Interactive panels lift; static ones stay put. */
+a.panel:hover,
+.panel-lift:hover {
+  transform: translateY(-3px);
+}
+
+/* Crimson signal edge that wakes on hover. */
+.panel-signal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(to bottom, #b3122e, rgba(179, 18, 46, 0));
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+
+.panel-signal:hover::before {
+  opacity: 1;
+}
+
+/* HUD corner ticks */
+.hud-corners::after,
+.hud-corners::before {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: rgba(179, 18, 46, 0.5);
+  transition: border-color 0.45s ease;
+  pointer-events: none;
+}
+
+.hud-corners::before {
+  top: -1px;
+  left: -1px;
+  border-top: 1px solid;
+  border-left: 1px solid;
+}
+
+.hud-corners::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 1px solid;
+  border-right: 1px solid;
+}
+
+.hud-corners:hover::before,
+.hud-corners:hover::after {
+  border-color: #b3122e;
+}
+
+/* Technical chip for tech-stack tokens */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #8a8a90;
+  border: 1px solid rgba(168, 168, 173, 0.12);
+  border-radius: 2px;
+  padding: 4px 8px;
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.chip:hover {
+  color: #e8e6e1;
+  border-color: rgba(179, 18, 46, 0.45);
+}
+
+/* --- Controls ------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.875rem 2rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease,
+    border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+}
+
+.btn-primary {
+  background: #b3122e;
+  color: #f5f5f5;
+  border: 1px solid #b3122e;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 40px rgba(179, 18, 46, 0.35);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #e8e6e1;
+  border: 1px solid rgba(168, 168, 173, 0.22);
+}
+
+.btn-secondary:hover {
+  border-color: rgba(179, 18, 46, 0.7);
+  color: #ffffff;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+}
+
+/* Accessible focus ring consistent with the accent */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 1px solid #b3122e;
+  outline-offset: 3px;
+}
+
+/* Opt-out for controls whose container already signals focus (command palette
+   input). Element+class beats the bare element rule above unambiguously. */
+input.no-focus-ring:focus-visible,
+textarea.no-focus-ring:focus-visible {
+  outline: none;
+}
+
+/* --- Motion -------------------------------------------------- */
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-float {
+  animation: float 2.4s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* --- Cursor -------------------------------------------------- */
+
+.cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(179, 18, 46, 0.9);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.25s ease, background-color 0.25s ease;
+  z-index: 9999;
+}
+
+.cursor.hover {
+  width: 44px;
+  height: 44px;
+  background: rgba(179, 18, 46, 0.12);
+  border-color: #b3122e;
+}
+
+@media (hover: none) {
+  .cursor {
+    display: none;
+  }
+}

@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+@theme {
+  /* Primary environment */
+  --color-hero-black: #0a0a0a;
+  --color-graphite: #161618;
+  --color-surface: #1a1a1c;
+  --color-surface-elevated: #242427;
+  --color-metal: #3d3d42;
+
+  /* Neutrals.
+     Lifted and cooled from the original warm greys (#a8a8ad / #8a8a90).
+     These carry 9-10px letter-spaced labels sitting over a LIVE 3D background,
+     where the effective backdrop is never a known flat colour — the old ramp
+     measured ~5:1 against pure black and less than that over a lit part of the
+     world, so the labels dissolved into the environment. The cool cast also
+     separates neutral text from the crimson signal colour. */
+  --color-silver: #c3c8d4;
+  --color-titanium: #a7aebd;
+  --color-off-white: #eef0f4;
+
+  /* Signal accent.
+     `crimson` is the graphic accent — dots, rules, borders, glows, 3D emissive.
+     It tops out at 2.85:1 on near-black, so it can NEVER carry small text.
+     `crimson-text` is the same hue lifted to ~5.3:1 for labels and links.
+     Use crimson for things you look at, crimson-text for things you read. */
+  --color-crimson: #b3122e;
+  --color-crimson-text: #e6455e;
+  --color-crimson-dim: #5c1018;
+
+  --font-display: 'Inter', sans-serif;
+  --font-body: 'Inter', sans-serif;
+
+  /* Display type scale — a fixed hierarchy, not ad-hoc sizes per section.
+     Paired line-heights and tracking so headings stay optically consistent. */
+  --text-display-sm: 1.875rem;
+  --text-display-sm--line-height: 1.1;
+  --text-display-sm--letter-spacing: -0.02em;
+  --text-display-md: 3rem;
+  --text-display-md--line-height: 1.02;
+  --text-display-md--letter-spacing: -0.025em;
+  --text-display-lg: 3.75rem;
+  --text-display-lg--line-height: 0.98;
+  --text-display-lg--letter-spacing: -0.03em;
+  --text-display-xl: 5rem;
+  --text-display-xl--line-height: 0.94;
+  --text-display-xl--letter-spacing: -0.035em;
+
+  /* Motion language — one easing vocabulary shared by CSS and Framer Motion. */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --shadow-crimson-glow: 0 0 40px rgba(179, 18, 46, 0.35);
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-ui: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+  --animate-pulse-subtle: pulseSubtle 2.4s ease-in-out infinite;
+  --animate-scan: scanDown 4s linear infinite;
+}
+
+@keyframes pulseSubtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@keyframes scanDown {
+  0% { transform: translateY(-100%); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateY(2000%); opacity: 0; }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background-color: #0a0a0a;
+  color: #e8e6e1;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(179, 18, 46, 0.35);
+  color: #e8e6e1;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #242427;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #b3122e;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

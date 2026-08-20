@@ -1,0 +1,182 @@
+/**
+ * The CSS half of the living background.
+ *
+ * This exists so the page is never a flat black rectangle — not during the
+ * first paint, not on hardware without WebGL, not if the GL context is lost.
+ * Black stays the dominant tone; these are extremely low-contrast veils that
+ * read as depth in the room rather than as visible gradients.
+ *
+ * Only transform and opacity are animated, so the whole layer stays on the
+ * compositor and never triggers layout or paint while it drifts.
+ */
+
+.world-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.world-backdrop {
+  position: absolute;
+  inset: 0;
+  /* Not #000. A near-black with a slight cool cast reads as atmosphere with
+     depth; pure black reads as an unlit surface. */
+  background:
+    radial-gradient(130% 100% at 50% 8%, #1c2333 0%, #10151f 42%, #0a0d14 72%, #070910 100%);
+  overflow: hidden;
+}
+
+/* Slow-drifting light pools. Each moves on its own long, prime-ish period so
+   the composite never visibly repeats. */
+.world-veil {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  filter: blur(80px);
+  will-change: transform, opacity;
+}
+
+.world-veil--a {
+  width: 65vw;
+  height: 65vw;
+  top: -18vw;
+  left: -12vw;
+  background: radial-gradient(circle, rgba(214, 32, 62, 0.3), transparent 65%);
+  animation: worldDriftA 47s ease-in-out infinite;
+}
+
+.world-veil--b {
+  width: 55vw;
+  height: 55vw;
+  bottom: -16vw;
+  right: -10vw;
+  background: radial-gradient(circle, rgba(92, 176, 212, 0.24), transparent 65%);
+  animation: worldDriftB 61s ease-in-out infinite;
+}
+
+.world-veil--c {
+  width: 45vw;
+  height: 45vw;
+  top: 32%;
+  left: 45%;
+  background: radial-gradient(circle, rgba(140, 100, 220, 0.2), transparent 65%);
+  animation: worldDriftC 73s ease-in-out infinite;
+}
+
+@keyframes worldDriftA {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.85; }
+  33%      { transform: translate3d(6vw, 5vh, 0) scale(1.12); opacity: 1; }
+  66%      { transform: translate3d(-3vw, 9vh, 0) scale(0.95); opacity: 0.7; }
+}
+
+@keyframes worldDriftB {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.7; }
+  40%      { transform: translate3d(-7vw, -6vh, 0) scale(1.15); opacity: 0.95; }
+  70%      { transform: translate3d(4vw, -2vh, 0) scale(0.92); opacity: 0.6; }
+}
+
+@keyframes worldDriftC {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.55; }
+  50%      { transform: translate3d(-9vw, 7vh, 0) scale(1.2); opacity: 0.85; }
+}
+
+/**
+ * Fine grain. Breaks up the gradient banding that large, very dark blurs
+ * always produce on 8-bit displays, and adds a film-like texture that keeps
+ * the black from looking like empty canvas.
+ */
+.world-grain {
+  position: absolute;
+  inset: -50%;
+  opacity: 0.028;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: worldGrain 6s steps(4) infinite;
+  will-change: transform;
+}
+
+@keyframes worldGrain {
+  0%   { transform: translate3d(0, 0, 0); }
+  25%  { transform: translate3d(-2%, 1%, 0); }
+  50%  { transform: translate3d(1%, -2%, 0); }
+  75%  { transform: translate3d(-1%, -1%, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+/* Reduced motion keeps every layer — it only stops them moving. The depth is
+   the point; the drift is the decoration. */
+.world-backdrop--still .world-veil,
+.world-backdrop--still .world-grain {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world-veil,
+  .world-grain {
+    animation: none !important;
+  }
+}
+
+/**
+ * Section treatment.
+ *
+ * Sections used to be opaque (`bg-hero-black` / `bg-graphite`), which is what
+ * made the site read as flat pages with a 3D box in the hero. They are now
+ * transparent, with a veil that is strong behind the reading column and fades
+ * to nothing at the section's top and bottom edges.
+ *
+ * That fade is the point: the seams between sections become clear windows onto
+ * the world, so the environment is continuously visible as you scroll rather
+ * than being something that only exists in the hero.
+ */
+.station {
+  position: relative;
+  background: transparent;
+}
+
+/**
+ * The scrim is an ELLIPSE centred on the reading column, not a full-width bar.
+ *
+ * A rectangular veil across the whole section has to be dark enough for the
+ * worst-case text position, which means it is far too dark everywhere else —
+ * that single decision is what flattened the world into a black page. A radial
+ * scrim puts the density exactly where the words are and releases the margins,
+ * so the environment stays visible around the content while contrast under the
+ * text actually goes UP.
+ */
+.station::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 78% 62% at 50% 50%,
+    rgba(7, 9, 14, 0.9) 0%,
+    rgba(7, 9, 14, 0.78) 45%,
+    rgba(7, 9, 14, 0.4) 72%,
+    transparent 100%
+  );
+}
+
+/* Long-form or data-dense sections need the plateau to reach further out. */
+.station--dense::before {
+  background: radial-gradient(
+    ellipse 88% 70% at 50% 50%,
+    rgba(7, 9, 14, 0.93) 0%,
+    rgba(7, 9, 14, 0.86) 55%,
+    rgba(7, 9, 14, 0.5) 78%,
+    transparent 100%
+  );
+}
+
+/* The hero shows the world at full strength — nothing between the visitor and
+   the core except the legibility scrim over the text column itself. */
+.station--clear::before {
+  display: none;
+}
+
+/* Section content must sit above the veil. */
+.station > * {
+  position: relative;
+  z-index: 1;
+}
