@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
 import { STATIONS } from './stations'
+import { chargedInfluenceAt, cursorField } from './cursorFieldState'
 
 /**
  * ENCOUNTERS — the things you find by going deeper.
@@ -107,9 +108,19 @@ function Belt({ count, tint }) {
     for (let i = 0; i < rocks.length; i++) {
       const r = rocks[i]
       const a = r.angle + time * r.speed
-      dummy.position.set(Math.cos(a) * r.radius, r.y, Math.sin(a) * r.radius)
-      dummy.rotation.set(time * r.spin, a * 1.3, time * r.spin * 0.6)
-      dummy.scale.setScalar(r.size)
+      let bx = Math.cos(a) * r.radius
+      let by = r.y
+      const bz = Math.sin(a) * r.radius
+
+      // A belt uses a tighter radius and lifts less than loose debris: heavier
+      // bodies on established orbits should be harder to disturb. Different
+      // profiles per object type are what stop the world feeling uniform.
+      const inf = chargedInfluenceAt(bx, by, bz, 14)
+      by += inf * 4.5
+
+      dummy.position.set(bx, by, bz)
+      dummy.rotation.set(time * r.spin + inf * 3, a * 1.3, time * r.spin * 0.6)
+      dummy.scale.setScalar(r.size * (1 + inf * 0.35))
       dummy.updateMatrix()
       mesh.setMatrixAt(i, dummy.matrix)
     }
@@ -394,13 +405,32 @@ function FloatingField({ count }) {
     for (let i = 0; i < bits.length; i++) {
       const b = bits[i]
       const travel = (b.offset + time * b.speed) % 1
-      dummy.position.set(
-        Math.cos(b.angle) * b.radius,
-        Math.sin(b.angle) * b.radius * 0.45 + b.yBias,
-        camZ - SLAB + travel * SLAB
-      )
-      dummy.rotation.set(b.angle + time * b.spin, b.angle * 1.7, time * b.spin * 0.5)
-      dummy.scale.setScalar(b.size)
+      let px = Math.cos(b.angle) * b.radius
+      let py = Math.sin(b.angle) * b.radius * 0.45 + b.yBias
+      const pz = camZ - SLAB + travel * SLAB
+
+      // LOCAL RESPONSE. Only bodies inside the field's radius move, and the
+      // closer they are the more they lift — so the effect reads as something
+      // acting on a patch of the world rather than the whole scene sliding
+      // whenever the pointer twitches.
+      const inf = chargedInfluenceAt(px, py, pz, 26)
+      let spin = time * b.spin
+      if (inf > 0.001) {
+        // Rise, and swing around the cursor rather than straight at it: a
+        // direct pull reads as snapping, an orbit reads as being caught.
+        const dx = px - cursorField.position.x
+        const dz = pz - cursorField.position.z
+        const swing = Math.atan2(dz, dx) + inf * 1.2
+        const dist = Math.hypot(dx, dz)
+        px = cursorField.position.x + Math.cos(swing) * dist
+        py += inf * 9
+        spin += inf * 4
+      }
+
+      dummy.position.set(px, py, pz)
+      dummy.rotation.set(b.angle + spin, b.angle * 1.7, spin * 0.5)
+      // Charged bodies swell slightly — energy, not just displacement.
+      dummy.scale.setScalar(b.size * (1 + inf * 0.5))
       dummy.updateMatrix()
       mesh.setMatrixAt(i, dummy.matrix)
     }

@@ -3,13 +3,12 @@ import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import AdaptiveDpr from './AdaptiveDpr'
 import Atmosphere from './Atmosphere'
-import BlackHole from './BlackHole'
+import CursorField from './CursorField'
 import DeepSpace from './DeepSpace'
 import Encounters from './Encounters'
 import CameraRig, { WorldMood } from './CameraRig'
 import LightRig from './LightRig'
 import WorldPointer from './WorldPointer'
-import StationProps from './StationProps'
 import { useWorldStore } from '../state/worldStore'
 
 // The grade is the most expensive thing in the world and the first thing that
@@ -30,9 +29,9 @@ const flag = (name) =>
  * resolution further if the machine still can't hold frame rate.
  */
 const TIERS = {
-  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, blackHole: true, bhDebris: 900, galaxy: 5000, nebulae: 6, singularities: true, foreground: 14, beltRocks: 220, clusterStars: 900, shardCount: 90, floaters: 260, dpr: [1, 1.75] },
-  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, blackHole: true, bhDebris: 450, galaxy: 2400, nebulae: 4, singularities: true, foreground: 9, beltRocks: 120, clusterStars: 450, shardCount: 48, floaters: 140, dpr: [1, 1.4] },
-  low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, grade: false, blackHole: true, bhDebris: 260, galaxy: 900, nebulae: 3, singularities: false, foreground: 5, beltRocks: 50, clusterStars: 180, shardCount: 20, floaters: 60, dpr: 1 },
+  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, blackHole: true, bhDebris: 900, galaxy: 5000, nebulae: 6, singularities: true, foreground: 14, beltRocks: 220, clusterStars: 900, shardCount: 90, floaters: 260, cursorMotes: 300, dpr: [1, 1.75] },
+  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, blackHole: true, bhDebris: 450, galaxy: 2400, nebulae: 4, singularities: true, foreground: 9, beltRocks: 120, clusterStars: 450, shardCount: 48, floaters: 140, cursorMotes: 170, dpr: [1, 1.4] },
+  low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, grade: false, blackHole: true, bhDebris: 260, galaxy: 900, nebulae: 3, singularities: false, foreground: 5, beltRocks: 50, clusterStars: 180, shardCount: 20, floaters: 60, cursorMotes: 80, dpr: 1 },
 }
 
 const pickTier = () => {
@@ -123,13 +122,13 @@ const WorldCanvas = ({ reducedMotion = false }) => {
           something new rather than re-showing the same two galaxies. */}
       <Encounters tier={effectiveTier} />
 
+      {/* The cursor is the force acting on this world now that the guardian
+          and the black hole are gone. This drives the shared field every frame
+          and renders the motes that gather in it, so the cause of the drift
+          elsewhere is visible rather than unexplained. */}
+      <CursorField count={effectiveTier.cursorMotes} reducedMotion={reducedMotion} />
+
       <Atmosphere tier={effectiveTier} reducedMotion={reducedMotion} />
-      <BlackHole
-        enabled={tier.blackHole}
-        debrisCount={tier.bhDebris}
-        reducedMotion={reducedMotion}
-      />
-      <StationProps tier={effectiveTier} reducedMotion={reducedMotion} />
       <WorldPointer />
 
       {tier.grade && !flag('nofx') && (
