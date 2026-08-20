@@ -37,7 +37,17 @@ import * as THREE from 'three'
 
 /** Live description of the protected region, in NDC. */
 export const safeZone = {
-  /** Half-width of the reading column, 0..1 in NDC. */
+  /**
+   * Horizontal bounds of the reading column in NDC, -1..1.
+   *
+   * These are LEFT and RIGHT rather than a half-width because the column is
+   * not always centred. The hero's text block is left-aligned and occupies
+   * roughly -0.56..0.0, so a symmetric +/-0.17 zone protected the middle of the
+   * screen while leaving shards free to drift across the name.
+   */
+  left: -0.42,
+  right: 0.42,
+  /** Widest half-extent, kept for layers that only need a rough measure. */
   halfWidth: 0.42,
   /** Vertical extent of the column. */
   top: 0.9,
@@ -108,7 +118,10 @@ export function measureSafeZone(force = false) {
     // back to the design measure rather than to "no protection at all", so the
     // world never briefly swings back over the text during a transition.
     const column = Math.min(1024, vw - 48)
-    safeZone.halfWidth = Math.min(0.92, column / vw)
+    const half = Math.min(0.92, column / vw)
+    safeZone.left = -half
+    safeZone.right = half
+    safeZone.halfWidth = half
     safeZone.top = 0.9
     safeZone.bottom = -0.9
     return
@@ -117,8 +130,9 @@ export function measureSafeZone(force = false) {
   // Screen pixels to NDC. A little padding on each side so objects clear the
   // text with visible air rather than grazing it.
   const padX = safeZone.mobile ? 24 : 56
-  const halfW = (right - left + padX * 2) / 2 / vw
-  safeZone.halfWidth = Math.min(0.95, Math.max(0.2, halfW))
+  safeZone.left = Math.max(-1.1, ((left - padX) / vw) * 2 - 1)
+  safeZone.right = Math.min(1.1, ((right + padX) / vw) * 2 - 1)
+  safeZone.halfWidth = Math.max(Math.abs(safeZone.left), Math.abs(safeZone.right))
   // Clamped to the viewport. Sections are several screens tall, so a container
   // scrolled halfway past produces a rect whose edges are well outside NDC.
   // Left unclamped those values are meaningless to compare against, and they
@@ -176,12 +190,13 @@ export function keepOutAmount(x, y, z) {
   if (Math.abs(ndcX) > 1.05 || Math.abs(ndcY) > 1.05) return 0
 
   const inColumn =
-    Math.abs(ndcX) < safeZone.halfWidth && ndcY < safeZone.top && ndcY > safeZone.bottom
+    ndcX > safeZone.left && ndcX < safeZone.right && ndcY < safeZone.top && ndcY > safeZone.bottom
   const underNav = ndcY > safeZone.navFloor
   if (!inColumn && !underNav) return 0
 
   // Softer toward the edges so the correction eases in rather than snapping.
-  const edge = 1 - Math.abs(ndcX) / Math.max(safeZone.halfWidth, 0.001)
+  const span = Math.max(safeZone.right - safeZone.left, 0.001)
+  const edge = Math.min(ndcX - safeZone.left, safeZone.right - ndcX) / (span * 0.5)
   return underNav ? 1 : Math.min(1, edge * 1.6)
 }
 
@@ -228,8 +243,10 @@ export function pushOutOfColumn(x, y, z, out, strength = 1, nearLimit = safeZone
   // of units across, so pushing its centre to the column edge still leaves
   // half of it lying over the text. Converting the radius to an angular size
   // at this depth is what makes the push respect the object's real extent.
-  const limit = safeZone.halfWidth + (radius * projX) / depth
-  const inside = limit - Math.abs(ndcX)
+  const pad = (radius * projX) / depth
+  const lo = safeZone.left - pad
+  const hi = safeZone.right + pad
+  const inside = Math.min(ndcX - lo, hi - ndcX)
   if (inside <= 0) {
     if (moved) out.copy(_v).applyMatrix4(worldMatrix)
     return moved
@@ -240,14 +257,14 @@ export function pushOutOfColumn(x, y, z, out, strength = 1, nearLimit = safeZone
   // floor high. At a 0.35 floor, fragments around 150 units only leaned out of
   // the column and were still measurably inside it; the point is to clear the
   // text, not to gesture at clearing it.
+  const span = Math.max(hi - lo, 0.001)
   const proximity = 1 - depth / nearLimit
-  const k = Math.min(1, (inside / limit) * 2.0) * strength * (0.7 + proximity * 0.3)
+  const k = Math.min(1, (inside / (span * 0.5)) * 2.0) * strength * (0.7 + proximity * 0.3)
 
-  // Solve for the camera-space x that puts this point exactly on the column
-  // edge, then ease toward it. Objects already left of centre go left, right
-  // go right, so nothing crosses the frame to escape.
-  const sign = ndcX === 0 ? (x + z > 0 ? 1 : -1) : Math.sign(ndcX)
-  const targetX = (sign * limit * depth) / projX
+  // Leave by the NEARER edge, so an object never crosses the whole frame to
+  // escape a column it was only just inside.
+  const targetNdc = ndcX - lo < hi - ndcX ? lo : hi
+  const targetX = (targetNdc * depth) / projX
   _v.x += (targetX - _v.x) * k
 
   // Back to world space.

@@ -27,6 +27,7 @@ export const COMMANDS = [
   { id: 'back', subjects: ['back', 'previous', 'return'], action: { type: 'back' }, say: 'GO BACK' },
   { id: 'linkedin', subjects: ['linkedin'], action: { type: 'social', target: 'linkedin' }, say: 'LINKEDIN' },
   { id: 'github', subjects: ['github', 'git'], action: { type: 'social', target: 'github' }, say: 'GITHUB' },
+  { id: 'instagram', subjects: ['instagram', 'insta', 'gram'], action: { type: 'social', target: 'instagram' }, say: 'INSTAGRAM' },
 
   { id: 'palette', subjects: ['command', 'commands', 'menu', 'palette', 'search'], action: { type: 'palette' }, say: 'COMMAND CENTER' },
   { id: 'stop', subjects: ['stop', 'sleep', 'quiet', 'cancel', 'disable'], action: { type: 'stop' }, say: 'MIC OFF' },

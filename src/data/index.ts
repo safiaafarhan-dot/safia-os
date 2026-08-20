@@ -12,6 +12,12 @@ export const socials = [
     description: "Projects and code repositories"
   },
   {
+    name: "Instagram",
+    url: "https://www.instagram.com/safiya_farhan_/",
+    icon: "instagram",
+    description: "Behind the work"
+  },
+  {
     name: "Email",
     url: "safiafarhan999@gmail.com",
     icon: "email",

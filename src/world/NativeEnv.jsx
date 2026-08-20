@@ -31,10 +31,18 @@ import * as THREE from 'three'
 
 const PANELS = [
   // [ position, rotation, scale, colour, intensity ]
-  { pos: [0, 8, -6], rot: [Math.PI / 2, 0, 0], scale: [24, 14], color: '#9fb4d8', intensity: 2.5 },
-  { pos: [9, 1, -10], rot: [0, -Math.PI / 2.4, 0], scale: [16, 10], color: '#ff2d4d', intensity: 2.9 },
-  { pos: [-10, 0, -4], rot: [0, Math.PI / 2.4, 0], scale: [14, 10], color: '#4d7fa8', intensity: 1.6 },
-  { pos: [0, -7, -6], rot: [-Math.PI / 2, 0, 0], scale: [20, 12], color: '#2c3240', intensity: 0.7 },
+  // Rebalanced so cyan leads and crimson answers. The crimson panel used to be
+  // the brightest surface in the map at 2.9, and since these are metals with no
+  // diffuse response, the cube map is effectively their colour -- everything
+  // reflected red. Crimson is now the SECOND strongest, which is the intended
+  // reading: a cool world with warm energy in it.
+  { pos: [0, 8, -6], rot: [Math.PI / 2, 0, 0], scale: [24, 14], color: '#a9c2e4', intensity: 2.7 },
+  { pos: [9, 1, -10], rot: [0, -Math.PI / 2.4, 0], scale: [16, 10], color: '#ff2d4d', intensity: 1.9 },
+  { pos: [-10, 0, -4], rot: [0, Math.PI / 2.4, 0], scale: [14, 10], color: '#3fc2e8', intensity: 3.0 },
+  // Violet from below. Narrow and dim: it tints the underside of a fragment as
+  // it rotates, which is what stops crystalline shapes reading as grey facets.
+  { pos: [-6, -6, -12], rot: [-Math.PI / 3, 0.5, 0], scale: [12, 8], color: '#7b4de0', intensity: 1.3 },
+  { pos: [0, -7, -6], rot: [-Math.PI / 2, 0, 0], scale: [20, 12], color: '#343d52', intensity: 0.9 },
 ]
 
 export default function NativeEnv({ resolution = 128 }) {

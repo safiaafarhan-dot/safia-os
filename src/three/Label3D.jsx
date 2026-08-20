@@ -14,64 +14,103 @@ import * as THREE from 'three'
  * a constant on-screen size as the camera moves — which is exactly the HUD
  * behaviour the drei version had with no distanceFactor.
  *
+ * SIZING, AND WHY IT KEPT GOING WRONG
+ * With `sizeAttenuation` off, three interprets sprite scale in NORMALISED
+ * SCREEN SPACE, not world units — scale.y of 1 means "as tall as the viewport".
+ * Every sizing bug here has come from forgetting that: the project labels were
+ * once 160% of the viewport wide and covered each other, and the skill labels
+ * 224%.
+ *
+ * The texture is therefore fitted to the text rather than the text to a fixed
+ * texture, and the sprite's aspect is derived from the canvas that was actually
+ * produced. That leaves exactly one number to choose per caller — `scale`, the
+ * fraction of the VIEWPORT HEIGHT the label should occupy — and makes it
+ * impossible for a long name to overflow or a short one to float in dead space.
+ *
  * ACCESSIBILITY NOTE
  * This text is decorative duplication. Every project name and its state also
- * exist as real DOM in the Projects section, which is what screen readers and
- * search engines read. Nothing here is the only source of any information —
- * that rule matters more than the bundle saving.
+ * exist as real DOM in the Projects section, and every skill name in the
+ * technology index below the constellation. Nothing here is the only source of
+ * any information — that rule matters more than the bundle saving.
  */
 
-/** Draw the two lines into a canvas at a fixed, generous resolution. */
+const TITLE_FONT = (px) =>
+  `700 ${px}px Inter, system-ui, -apple-system, "Segoe UI", sans-serif`
+const STATUS_FONT = '500 20px ui-monospace, SFMono-Regular, Menlo, monospace'
+const STATUS_TRACKING = 5
+const PAD_X = 28
+
+/** Width of the status line once hand-tracked. Canvas has no letter-spacing. */
+function statusWidth(ctx, status) {
+  ctx.font = STATUS_FONT
+  const chars = [...status]
+  const widths = chars.map((c) => ctx.measureText(c).width)
+  return {
+    chars,
+    widths,
+    total: widths.reduce((a, b) => a + b, 0) + STATUS_TRACKING * (chars.length - 1),
+  }
+}
+
+/** Draw the label into a canvas sized to its own content. */
 function drawLabel(title, status, statusColor) {
-  const W = 512
-  const H = 160
+  const measure = document.createElement('canvas').getContext('2d')
+
+  // Cap the title so a very long name shrinks rather than producing an absurdly
+  // wide sprite. "Distracted Driver Detection" used to be clipped at both ends.
+  const MAX_TEXT = 620
+  let titleSize = 44
+  measure.font = TITLE_FONT(titleSize)
+  while (measure.measureText(title).width > MAX_TEXT && titleSize > 20) {
+    titleSize -= 2
+    measure.font = TITLE_FONT(titleSize)
+  }
+  const titleW = measure.measureText(title).width
+
+  const st = status ? statusWidth(measure, status) : null
+  const W = Math.ceil(Math.max(titleW, st ? st.total : 0)) + PAD_X * 2
+  const H = status ? 132 : 68
+
   const canvas = document.createElement('canvas')
   canvas.width = W
   canvas.height = H
   const ctx = canvas.getContext('2d')
-
   ctx.clearRect(0, 0, W, H)
   ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
 
-  // FIT THE TITLE TO THE TEXTURE. Drawn at a fixed 44px, "Distracted Driver
-  // Detection" overflowed the 512px canvas and was clipped at both ends -- it
-  // rendered as "istracted Driver Detectic". Shrink until it fits rather than
-  // truncating, so a long project name stays readable and stays whole.
-  const MAX_W = W - 32
-  let titleSize = 44
-  ctx.font = `700 ${titleSize}px Inter, system-ui, -apple-system, "Segoe UI", sans-serif`
-  while (ctx.measureText(title).width > MAX_W && titleSize > 20) {
-    titleSize -= 2
-    ctx.font = `700 ${titleSize}px Inter, system-ui, -apple-system, "Segoe UI", sans-serif`
-  }
+  ctx.font = TITLE_FONT(titleSize)
   ctx.fillStyle = '#eef0f4'
-  ctx.fillText(title, W / 2, 58)
+  ctx.fillText(title, W / 2, status ? 40 : H / 2)
 
-  // Small caps, wide tracking — the same treatment the DOM labels use, drawn
-  // by hand because canvas has no letter-spacing property.
-  ctx.font = '500 20px ui-monospace, SFMono-Regular, Menlo, monospace'
-  ctx.fillStyle = statusColor
-  const tracking = 5
-  const chars = [...status]
-  const widths = chars.map((c) => ctx.measureText(c).width)
-  const total = widths.reduce((a, b) => a + b, 0) + tracking * (chars.length - 1)
-  let x = W / 2 - total / 2
-  chars.forEach((c, i) => {
-    ctx.fillText(c, x + widths[i] / 2, 104)
-    x += widths[i] + tracking
-  })
+  if (st) {
+    ctx.font = STATUS_FONT
+    ctx.fillStyle = statusColor
+    let x = W / 2 - st.total / 2
+    st.chars.forEach((c, i) => {
+      ctx.fillText(c, x + st.widths[i] / 2, 92)
+      x += st.widths[i] + STATUS_TRACKING
+    })
+  }
 
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.minFilter = THREE.LinearFilter
-  tex.magFilter = THREE.LinearFilter
-  tex.anisotropy = 4
-  return tex
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.minFilter = THREE.LinearFilter
+  texture.magFilter = THREE.LinearFilter
+  texture.anisotropy = 4
+  return { texture, aspect: W / H }
 }
 
-export default function Label3D({ position = [0, 0, 0], title, status, statusColor = '#a7aebd', scale = 0.1 }) {
+export default function Label3D({
+  position = [0, 0, 0],
+  title,
+  status,
+  statusColor = '#a7aebd',
+  /** Fraction of the viewport HEIGHT the label should occupy. */
+  scale = 0.09,
+}) {
   const spriteRef = useRef()
 
-  const texture = useMemo(
+  const { texture, aspect } = useMemo(
     () => drawLabel(title, status, statusColor),
     [title, status, statusColor]
   )
@@ -82,15 +121,7 @@ export default function Label3D({ position = [0, 0, 0], title, status, statusCol
     <sprite
       ref={spriteRef}
       position={position}
-      // Matches the canvas aspect (512x160) so the text is never stretched.
-      //
-      // These numbers are a FRACTION OF THE VIEWPORT, not world units: with
-      // sizeAttenuation off, three interprets sprite scale in normalised screen
-      // space. The original 1.6 x 0.5 therefore asked for a label 160% of the
-      // viewport wide, so all three project labels covered the canvas and each
-      // other. At 3.2 x 1 times a 0.1 default each label occupies about a third
-      // of the width, which clears the neighbouring modules at their spacing.
-      scale={[3.2 * scale, 1 * scale, 1]}
+      scale={[aspect * scale, scale, 1]}
       renderOrder={20}
     >
       <spriteMaterial

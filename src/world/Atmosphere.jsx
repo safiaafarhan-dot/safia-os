@@ -54,6 +54,8 @@ const skyFragment = /* glsl */ `
   uniform vec3 uGlow;
   uniform float uGlowPower;
   uniform vec3 uGlowDir;
+  uniform vec3 uCoolGlow;
+  uniform float uCoolPower;
   uniform float uTime;
 
   void main() {
@@ -66,9 +68,20 @@ const skyFragment = /* glsl */ `
     float d = max(dot(dir, normalize(uGlowDir)), 0.0);
     col += uGlow * pow(d, 2.6) * uGlowPower;
 
-    // Cold counter-glow so the dark half of the sky is never dead.
+    // THE COOL SOURCE. This used to be a token counter-glow at a twentieth of
+    // the crimson's strength, which meant the sky only ever had one light in
+    // it and everything away from that light fell to near-black. It is now a
+    // real source of its own, opposite the warm one and slightly wider, so the
+    // background is lit FROM TWO SIDES. Complementary sources are what give a
+    // dark frame depth without raising its overall brightness.
     float d2 = max(dot(dir, normalize(-uGlowDir)), 0.0);
-    col += vec3(0.038, 0.052, 0.082) * pow(d2, 3.0);
+    col += uCoolGlow * pow(d2, 3.4) * uCoolPower;
+
+    // A third, very wide violet wash across the middle of the sphere. Broad and
+    // weak: it exists to stop the band between the two sources reading as a
+    // dead zone, and should never be identifiable as its own light.
+    float band = 1.0 - abs(dir.y);
+    col += vec3(0.042, 0.024, 0.062) * pow(band, 4.0) * 0.42;
 
     // Hash dither. Very dark wide gradients band badly on 8-bit displays, and
     // banding is the single most "cheap render" artefact there is.
@@ -87,10 +100,14 @@ function Sky() {
     () => ({
       // Never #000. A near-black with a cool cast reads as atmosphere with
       // depth; pure black reads as an unlit surface.
-      uZenith: { value: new THREE.Color('#0b111c') },
-      uNadir: { value: new THREE.Color('#03050a') },
+      // Lifted off black. The nadir in particular was #03050a, which is within
+      // rounding distance of pure black across the whole lower hemisphere.
+      uZenith: { value: new THREE.Color('#0c1424') },
+      uNadir: { value: new THREE.Color('#05080f') },
       uGlow: { value: new THREE.Color('#8c0f24') },
       uGlowPower: { value: 0.45 },
+      uCoolGlow: { value: new THREE.Color('#175a7c') },
+      uCoolPower: { value: 0.3 },
       uGlowDir: { value: new THREE.Vector3(0.6, 0.3, -1) },
       uTime: { value: 0 },
     }),
@@ -109,6 +126,10 @@ function Sky() {
     const a = s.time * 0.017 + s.station * 0.62
     u.uGlowDir.value.set(Math.sin(a), 0.2 + Math.cos(a * 0.6) * 0.28, Math.cos(a) - 0.4)
     u.uGlowPower.value = 0.32 + sampleMood(s.station, 'accentPower') * 0.4 + s.energy * 0.16
+    // The cool source breathes on its own slow cycle, out of phase with the
+    // warm one, so the sky is never static even when nothing is happening.
+    u.uCoolPower.value =
+      0.24 + sampleMood(s.station, 'coolPower') * 0.34 + Math.sin(s.time * 0.06) * 0.06 + s.energy * 0.1
   })
 
   return (

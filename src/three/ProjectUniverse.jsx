@@ -310,6 +310,10 @@ function Module({ project, position, state, onHover, onSelect }) {
           state here also exists as real DOM in the Projects section. */}
       <Label3D
         position={[0, -1.5, 0]}
+        // 0.075 of the canvas height. The longest project name works out at
+        // ~36% of the width at this size, which clears its neighbours at the
+        // spacing the three modules sit on.
+        scale={0.075}
         title={project.name}
         status={isActive ? 'MODULE ACTIVE' : isDetected ? 'MODULE DETECTED' : 'MODULE OFFLINE'}
         statusColor={isActive ? '#e6455e' : isDimmed ? '#a7aebd' : '#c3c8d4'}

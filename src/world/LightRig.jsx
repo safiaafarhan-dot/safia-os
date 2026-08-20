@@ -38,6 +38,9 @@ export default function LightRig({ reducedMotion }) {
   const ambientRef = useRef()
   const fillRef = useRef()
 
+  const coolRef = useRef()
+  const coolAccentRef = useRef()
+
   const accentColor = useRef(new THREE.Color('#b3122e'))
   const nextColor = useRef(new THREE.Color())
 
@@ -63,7 +66,15 @@ export default function LightRig({ reducedMotion }) {
     }
 
     if (rimRef.current) {
-      rimRef.current.intensity = 2.2 + s.energy * 1.4
+      rimRef.current.intensity = 1.5 + s.energy * 1.0
+    }
+
+    if (coolRef.current) {
+      // The cyan rim comes from the opposite side to the crimson one, so a
+      // silhouette is edged warm on one side and cool on the other. That single
+      // relationship does more for perceived depth than any amount of extra
+      // brightness, and it is what keeps the palette from collapsing into red.
+      coolRef.current.intensity = 2.6 + s.energy * 1.5
     }
 
     if (accentRef.current) {
@@ -84,7 +95,17 @@ export default function LightRig({ reducedMotion }) {
     }
 
     if (fillRef.current) {
-      fillRef.current.intensity = 0.85 + s.energy * 0.4
+      fillRef.current.intensity = 1.35 + s.energy * 0.5
+    }
+
+    if (coolAccentRef.current && !reducedMotion) {
+      // A second travelling source, orbiting counter to the crimson one. Two
+      // lights moving at different rates means highlights are always crossing
+      // the geometry somewhere -- the world stays alive with the visitor
+      // completely still, which is the whole point of an ambient scene.
+      coolAccentRef.current.position.x = Math.sin(s.time * 0.11 + 2.1) * -9
+      coolAccentRef.current.position.y = 0.5 + Math.cos(s.time * 0.09) * 3.2
+      coolAccentRef.current.intensity = 22 + s.energy * 16
     }
   })
 
@@ -101,7 +122,10 @@ export default function LightRig({ reducedMotion }) {
           intensities, so the lighting is unchanged. */}
       {!skipEnv && <NativeEnv resolution={128} />}
 
-      <ambientLight ref={ambientRef} intensity={0.34} color="#5c6478" />
+      {/* Ambient is a deep blue rather than a neutral grey. It is the floor of
+          the whole image: at a neutral tint, unlit surfaces fall to grey-black
+          and large areas of the frame die. */}
+      <ambientLight ref={ambientRef} intensity={0.34} color="#68809f" />
 
       <group ref={rigRef}>
         <directionalLight
@@ -114,18 +138,37 @@ export default function LightRig({ reducedMotion }) {
         <directionalLight
           ref={rimRef}
           position={[7, 2, -14]}
-          intensity={2.2}
+          intensity={1.5}
           color="#ff3355"
+        />
+        {/* Cyan rim from the opposite side. The counterpart to the crimson one:
+            together they edge a silhouette warm and cool, which reads as form
+            rather than as a shape cut out of the fog. */}
+        <directionalLight
+          ref={coolRef}
+          position={[-8, 3, -13]}
+          intensity={2.6}
+          color="#4fd2f0"
         />
         {/* Cool fill from below-left. */}
         <directionalLight
           ref={fillRef}
           position={[-7, -4, -2]}
-          intensity={0.85}
-          color="#6f8fc0"
+          intensity={1.35}
+          color="#5fb2d8"
         />
         {/* Travelling accent source — the moving highlight in the corridor. */}
         <pointLight ref={accentRef} position={[0, 1.5, -12]} intensity={26} distance={46} decay={2} />
+        {/* The cool travelling source. Violet-cyan rather than pure cyan so the
+            two moving lights never read as a matched pair. */}
+        <pointLight
+          ref={coolAccentRef}
+          position={[-9, 0.5, -15]}
+          intensity={22}
+          distance={54}
+          decay={2}
+          color="#54c8f0"
+        />
       </group>
     </>
   )
