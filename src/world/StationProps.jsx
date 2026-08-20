@@ -146,7 +146,7 @@ const CORE_DEPTH = 10.5
  */
 const CORE_FRAMING = {
   // Wide: right of the text column, slightly above centre.
-  wide: { x: 0.6, y: 0.12, heightFrac: 0.66 },
+  wide: { x: 0.52, y: 0.1, heightFrac: 0.72 },
   // Portrait: centred in the clear band between the nav bar and the headline.
   // That band is only ~185px tall on a 844px screen, so the figure has to be
   // both smaller and higher than the wide-viewport framing.

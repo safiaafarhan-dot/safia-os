@@ -362,10 +362,21 @@ function StarField({ count }) {
 /* ------------------------------------------------------------- strata ----- */
 
 /**
- * The architecture: wireframe frames and slabs flanking the corridor for its
- * full length. One InstancedMesh, so several hundred structures cost a single
- * draw call. This is the layer that makes scrolling feel like travelling past
- * something rather than zooming into a texture.
+ * The architecture flanking the corridor.
+ *
+ * These used to be randomly rotated, randomly scaled boxes spread on both
+ * sides. Two things went wrong with that. Random rotation gives a box no
+ * direction, so it reads as debris rather than as structure. And perspective
+ * convergence meant the DISTANT ones landed in the middle of the frame, so the
+ * composite was rubble tumbling across the headline — the single biggest
+ * reason the environment looked template-y.
+ *
+ * They are now DIRECTIONAL: long ribs running parallel to the travel axis,
+ * held in three discrete lateral bands well outside the reading corridor. A
+ * rib that runs along -Z draws a converging line toward the vanishing point,
+ * which is what makes travel legible. Speed lines instead of confetti.
+ *
+ * One InstancedMesh, so several hundred ribs still cost a single draw call.
  */
 function CorridorStrata({ count }) {
   const meshRef = useRef()
@@ -375,27 +386,28 @@ function CorridorStrata({ count }) {
     for (let i = 0; i < count; i++) {
       const side = i % 2 === 0 ? -1 : 1
       const z = -(Math.random() * (WORLD_DEPTH + STATION_SPACING * 2)) + STATION_SPACING
-      // Structures stay outside a clear lateral corridor. Spawning them across
-      // the full width put architecture directly behind the reading column,
-      // which both wrecked text contrast and turned the frame into noise. The
-      // corridor is the negative space that lets the composition breathe.
+      // Three discrete lateral bands - near wall, mid structure, far skyline.
+      // Discrete bands read as built architecture; a uniform random spread
+      // reads as a fog of objects. Nothing is allowed inside the reading
+      // corridor, which is the negative space the composition breathes in.
+      const band = i % 3
+      const lateral =
+        band === 0 ? 20 + Math.random() * 8 : band === 1 ? 32 + Math.random() * 14 : 52 + Math.random() * 28
       out.push({
-        position: [
-          side * (14 + Math.random() * 20),
-          (Math.random() - 0.5) * 26,
-          z,
-        ],
+        position: [side * lateral, (Math.random() - 0.5) * (band === 0 ? 22 : 42), z],
+        // Only a slight roll. Ribs stay aligned to the corridor, because the
+        // alignment IS the depth cue.
         rotation: [
-          (Math.random() - 0.5) * 0.5,
-          (Math.random() - 0.5) * 1.2,
-          (Math.random() - 0.5) * 0.4,
+          (Math.random() - 0.5) * 0.07,
+          (Math.random() - 0.5) * 0.12,
+          (Math.random() - 0.5) * 0.14,
         ],
         scale: [
-          0.6 + Math.random() * 5,
-          0.6 + Math.random() * 9,
-          0.4 + Math.random() * 3,
+          0.3 + Math.random() * 1.1,
+          0.3 + Math.random() * 2.0,
+          16 + Math.random() * 52, // the long axis: down the corridor
         ],
-        drift: 0.1 + Math.random() * 0.35,
+        drift: 0.05 + Math.random() * 0.16,
         phase: Math.random() * Math.PI * 2,
       })
     }
@@ -418,11 +430,7 @@ function CorridorStrata({ count }) {
         inst.position[1] + Math.sin(time * inst.drift + inst.phase) * 0.6,
         inst.position[2]
       )
-      dummy.rotation.set(
-        inst.rotation[0],
-        inst.rotation[1] + time * inst.drift * 0.04,
-        inst.rotation[2]
-      )
+      dummy.rotation.set(inst.rotation[0], inst.rotation[1], inst.rotation[2])
       dummy.scale.set(inst.scale[0], inst.scale[1], inst.scale[2])
       dummy.updateMatrix()
       mesh.setMatrixAt(i, dummy.matrix)
@@ -438,11 +446,20 @@ function CorridorStrata({ count }) {
           corridor had no landmarks and no sense of scale. Solid metal picks up
           the environment map and the crimson rim, which is what turns them
           into architecture you can see yourself travelling past. */}
+      {/* Dark anodised metal. It is the environment map and the crimson rim
+          that make these visible at all - a diffuse material would render as
+          flat grey bars and kill the depth entirely. */}
+      {/* Dark anodised metal, deliberately ROUGH. A long rib presents a big
+          broadside to the crimson panel in the environment map, and at low
+          roughness it mirrors that panel almost perfectly - which turned the
+          left of frame into a row of glowing red bars. Roughness scatters that
+          reflection into a dim sheen, so the ribs read as structure catching a
+          little light rather than as light sources themselves. */}
       <meshStandardMaterial
-        color="#3b4152"
-        metalness={0.82}
-        roughness={0.34}
-        envMapIntensity={1.5}
+        color="#242a38"
+        metalness={0.72}
+        roughness={0.62}
+        envMapIntensity={0.85}
       />
     </instancedMesh>
   )
@@ -462,7 +479,10 @@ function FloatingFragments({ count }) {
       // The inner radius is generous because a single fragment drifting near
       // the camera projects large enough to upstage the hero core entirely.
       const angle = Math.random() * Math.PI * 2
-      const radius = 11 + Math.random() * 14
+      // Pushed further out than before. A fragment drifting near the camera
+      // projects large enough to upstage the guardian entirely, and fragments
+      // crossing the headline are clutter rather than depth.
+      const radius = 16 + Math.random() * 18
       out.push({
         position: [
           Math.cos(angle) * radius,

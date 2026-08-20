@@ -97,7 +97,7 @@ export default function LightRig({ reducedMotion }) {
         {/* Cool overhead strip — the dominant reflection on top surfaces. */}
         <Lightformer
           form="rect"
-          intensity={2.4}
+          intensity={3.4}
           color="#9fb4d8"
           position={[0, 8, -6]}
           rotation={[Math.PI / 2, 0, 0]}
@@ -107,7 +107,7 @@ export default function LightRig({ reducedMotion }) {
             traces the edge of every structure. */}
         <Lightformer
           form="rect"
-          intensity={3.2}
+          intensity={2.9}
           color="#ff2d4d"
           position={[9, 1, -10]}
           rotation={[0, -Math.PI / 2.4, 0]}
