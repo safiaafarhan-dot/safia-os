@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
 import { STATIONS, sampleMood } from './stations'
+import { BH_POSITION, bhAttention } from './blackHoleState'
 
 /**
  * Flies the camera down the corridor.
@@ -40,6 +41,7 @@ export default function CameraRig({ reducedMotion = false }) {
   const nextTangent = useRef(new THREE.Vector3(0, 0, -1))
   const right = useRef(new THREE.Vector3(1, 0, 0))
   const up = useRef(new THREE.Vector3(0, 1, 0))
+  const bhAim = useRef(new THREE.Vector3())
 
   const { pathCurve } = useMemo(() => {
     const pathCurve = new THREE.CatmullRomCurve3(
@@ -94,6 +96,29 @@ export default function CameraRig({ reducedMotion = false }) {
       .addScaledVector(tangent.current, 18)
       .addScaledVector(right.current, biasX * 6)
       .addScaledVector(up.current, biasY * 6)
+
+    // THE CAMERA NOTICES THE BLACK HOLE AND TURNS TO WATCH IT.
+    //
+    // On a curved path no fixed point stays in frame - the heading follows the
+    // tangent and swings away from anything stationary. Rather than shuffling
+    // the object until it happens to line up, the rig turns its head, which is
+    // both what an operator would do and what makes the approach read as
+    // discovery.
+    //
+    // The aim goes to a point BESIDE the hole, not at it: offset along the
+    // camera's right by the amount that lands the hole about a quarter of the
+    // way left of centre. That keeps the frame's right side clear for the
+    // guardian, which is what stops the climax from swallowing the
+    // protagonist. The offset is computed from distance so the composition
+    // holds as the hole grows.
+    const attention = bhAttention(s.station)
+    if (attention > 0.001) {
+      const bhDist = tmp.current.distanceTo(BH_POSITION)
+      bhAim.current
+        .copy(BH_POSITION)
+        .addScaledVector(right.current, bhDist * 0.171)
+      lookTarget.current.lerp(bhAim.current, attention)
+    }
 
     // The look target lags, so fast scrolling swings the view like a real rig
     // catching up rather than snapping rigidly to the new heading.

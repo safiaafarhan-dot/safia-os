@@ -1,3 +1,52 @@
+import * as THREE from 'three'
+import { STATION_SPACING } from './stations.js'
+
+/**
+ * WHERE THE BLACK HOLE IS, and when the camera pays attention to it.
+ *
+ * These live here rather than inside BlackHole.jsx because the CAMERA needs
+ * them too. On a straight corridor a fixed point stays roughly ahead on its
+ * own; on a curved path with tangent-following heading it does not - traced
+ * across the journey, the old position was in frame at the hero (where it must
+ * not be) and nowhere else, swinging to ndc.x of 12 by station 3.
+ *
+ * The answer is not to keep moving the object. It is to let the camera turn
+ * and look at it, which is what a camera operator would do and what makes the
+ * approach read as discovery rather than as something sliding into shot.
+ */
+export const BH_POSITION = new THREE.Vector3(10, 4, -7.5 * STATION_SPACING)
+
+/** Event horizon radius, in world units. */
+export const BH_HORIZON_R = 11
+
+/**
+ * How much the camera is watching it, 0..1.
+ *
+ * Rises from station 2.2 as the anomaly becomes recognisable, holds through
+ * the climax, releases after 6.2 so the hole falls behind and the universe
+ * opens onto whatever is next. Never reaches 1: the rig keeps a little of its
+ * own heading throughout, so it reads as a camera glancing across rather than
+ * as a turret locked on.
+ */
+const smoothstep = (e0, e1, x) => {
+  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)))
+  return t * t * (3 - 2 * t)
+}
+
+export const bhAttention = (station) =>
+  smoothstep(1.4, 3.4, station) * (1 - smoothstep(6.2, 7.0, station)) * 0.92
+
+/**
+ * How present the hole is in the world, 0..1.
+ *
+ * Deliberately WIDER than the attention window at the front: the anomaly is
+ * faintly there before the camera turns toward it, so the visitor can notice
+ * it first. That is the difference between discovering something and being
+ * shown it.
+ */
+export const bhPresence = (station) =>
+  smoothstep(1.2, 4.2, station) * (1 - smoothstep(6.0, 7.0, station))
+
 /**
  * Where the black hole currently is on screen, and how hard it is bending
  * light.
@@ -34,6 +83,6 @@ export const blackHoleState = {
 
 // Dev-only handle so the approach curve can be measured from the console
 // rather than judged by eye. Stripped from production by the DEV guard.
-if (import.meta.env.DEV && typeof window !== 'undefined') {
+if (import.meta.env?.DEV && typeof window !== 'undefined') {
   window.__bh = blackHoleState
 }

@@ -2,8 +2,7 @@ import React, { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
-import { blackHoleState } from './blackHoleState'
-import { STATION_SPACING } from './stations'
+import { BH_HORIZON_R, BH_POSITION, bhPresence, blackHoleState } from './blackHoleState'
 
 /**
  * The black hole.
@@ -49,19 +48,10 @@ import { STATION_SPACING } from './stations'
  * The lateral offset is small - just enough to sit right of the reading column
  * without leaving the middle of the composition.
  */
-const BH_DEPTH_STATION = 7.64 // beyond the last station: always ahead
-const BH_POSITION = new THREE.Vector3(12, 6, -BH_DEPTH_STATION * STATION_SPACING)
-
-// Large, because it is seen from 90-260 units away for its entire screen life.
-const HORIZON_R = 11
+// Position, size and timing are shared with the camera - see blackHoleState.
+const HORIZON_R = BH_HORIZON_R
 const DISK_INNER = HORIZON_R * 1.45
-const DISK_OUTER = HORIZON_R * 3.4
-
-/** GLSL-style smoothstep, for shaping the approach on the JS side. */
-const smoothstep = (edge0, edge1, x) => {
-  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)))
-  return t * t * (3 - 2 * t)
-}
+const DISK_OUTER = HORIZON_R * 2.4
 
 /* ------------------------------------------------------------------ disk -- */
 
@@ -326,9 +316,7 @@ export default function BlackHole({ enabled = true, debrisCount = 900, reducedMo
     // falls away over one - which also stops the hole from engulfing the frame
     // as the camera closes the last stretch, where its apparent radius grows
     // faster than any presence curve could sensibly track.
-    const rise = smoothstep(0.6, 4.6, s.station)
-    const fall = 1 - smoothstep(5.6, 6.6, s.station)
-    const presence = pinned() ? 1 : rise * fall
+    const presence = pinned() ? 1 : bhPresence(s.station)
 
     blackHoleState.presence = presence
     groupRef.current.visible = presence > 0.005
@@ -366,6 +354,14 @@ export default function BlackHole({ enabled = true, debrisCount = 900, reducedMo
     if (horizonRef.current) horizonRef.current.visible = presence > 0.02
 
     /* ---- publish screen position for the lensing pass ---- */
+    // The camera's world matrix must be current before projecting. CameraRig
+    // sets position and calls lookAt in its own useFrame, but lookAt only
+    // touches the quaternion - matrixWorld is still last frame's until three
+    // refreshes it. Projecting against the stale matrix produced screen-space
+    // y values in the tens (they are meant to be 0..1), which the in-frame
+    // gate then correctly rejected - so the lensing silently switched itself
+    // off at exactly the moment the hole filled the shot.
+    camera.updateMatrixWorld()
     projected.copy(BH_POSITION).project(camera)
     const onScreen = projected.z < 1
     blackHoleState.x = projected.x * 0.5 + 0.5
