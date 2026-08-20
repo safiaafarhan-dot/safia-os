@@ -252,18 +252,29 @@ const limbFragment = /* glsl */ `
  * light, not a texture-mapped globe. That reads as far more expensive than any
  * amount of surface detail would, and costs one sphere and one billboard.
  */
-function Planet({ position, radius, tint, ring }) {
+function Planet({ position, radius, tint, ring, from = 0 }) {
+  const groupRef = useRef()
   const bodyRef = useRef()
   const limbRef = useRef()
 
   useFrame((state) => {
     const s = scrollState()
+    // Planets belong to the WORLDS band. `from` also does a second job for the
+    // crimson body: a dark sphere wearing a bright red limb glow is close
+    // enough to a small accretion disc that it read as the black hole coming
+    // back, which is the one thing this experience is not allowed to look
+    // like. Keeping it out of the intro removes the resemblance entirely.
+    const g = groupRef.current
+    if (g && from > 0) {
+      g.visible = s.station > from
+      if (!g.visible) return
+    }
     if (bodyRef.current) bodyRef.current.rotation.y = s.time * 0.008
     if (limbRef.current) limbRef.current.quaternion.copy(state.camera.quaternion)
   })
 
   return (
-    <group position={position}>
+    <group ref={groupRef} position={position}>
       <mesh ref={bodyRef}>
         <sphereGeometry args={[radius, 40, 28]} />
         <meshStandardMaterial
@@ -524,7 +535,7 @@ const DeepSpace = ({ tier }) => {
 
       <Nebulae clouds={clouds} noise={noise} />
 
-      <Planet position={[-235, -84, -690]} radius={30} tint="#b3122e" ring={false} />
+      <Planet position={[-235, -84, -690]} radius={30} tint="#b3122e" ring={false} from={2.4} />
       <Planet position={[210, 85, -560]} radius={46} tint="#8ea6c8" ring />
 
       {tier.singularities && (
