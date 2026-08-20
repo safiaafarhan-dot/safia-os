@@ -353,13 +353,18 @@ function HeroCore({ reducedMotion }) {
       const dy = base[1] - camera.position.y
       const dz = base[2] - camera.position.z
       const len = Math.hypot(dx, dy, dz) || 1
+      // Held well back and run gently. At 2.6 units and intensity 7 it was
+      // close enough for inverse-square falloff to blow the nearest plates
+      // out into hot bands that the bloom pass then smeared across the torso -
+      // the figure read as glitching rather than as lit. A rim light should
+      // draw an edge, not light the subject.
       rimRef.current.position.set(
-        base[0] + (dx / len) * 2.6 * scale,
-        base[1] + (dy / len) * 2.6 * scale + 1.4 * scale,
-        base[2] + (dz / len) * 2.6 * scale
+        base[0] + (dx / len) * 5.5 * scale,
+        base[1] + (dy / len) * 5.5 * scale + 2.2 * scale,
+        base[2] + (dz / len) * 5.5 * scale
       )
-      rimRef.current.intensity = (7 + s.energy * 5) * scale * scale
-      rimRef.current.distance = 14 * scale
+      rimRef.current.intensity = (2.6 + s.energy * 1.6) * scale * scale
+      rimRef.current.distance = 22 * scale
     }
 
     // Power only arrives once the plating is essentially seated.
@@ -371,7 +376,7 @@ function HeroCore({ reducedMotion }) {
       // Kept deliberately low. The bloom pass is what gives the core its
       // reach; driving the emissive hard as well blew it into a red ball that
       // swallowed the chest and detached from the silhouette.
-      glowRef.current.material.emissiveIntensity = lit * (0.5 + s.energy * 0.5) * beat
+      glowRef.current.material.emissiveIntensity = lit * (0.42 + s.energy * 0.4) * beat
       glowRef.current.scale.setScalar(lit * (1 + Math.sin(s.time * 2) * 0.08 * lit))
     }
     if (visorRef.current) {
@@ -439,7 +444,7 @@ function HeroCore({ reducedMotion }) {
           blew out into a floating ball that detached from the silhouette. The
           bloom pass is what gives it reach now, not raw intensity. */}
       <mesh ref={glowRef} position={[0, 0.72, 0.36]}>
-        <sphereGeometry args={[0.062, 20, 20]} />
+        <sphereGeometry args={[0.095, 20, 20]} />
         <meshStandardMaterial color="#ff6a80" emissive="#ff2d4d" emissiveIntensity={0} />
       </mesh>
       {/* The housing that holds it, so the core sits IN the chest rather than

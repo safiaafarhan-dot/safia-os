@@ -315,11 +315,19 @@ export default function PostFX({ reducedMotion = false }) {
         quad.render(gl)
       }
 
-      // One wide octave rather than two. The taps are spread further apart to
-      // keep the long falloff that stops the glow reading as a uniform sticker
-      // around every source, for half the passes.
-      blur(rtA, rtB, 2.1 / bw, 0)
-      blur(rtB, rtA, 0, 2.1 / bh)
+      // TWO octaves, not one.
+      //
+      // A single octave at this resolution was visibly broken: the reactor is
+      // a sub-pixel source at 1/6 scale, so a 5-tap blur spread it over only a
+      // few texels and upsampling turned it into a blocky red grid across the
+      // guardian's chest. It read as a rendering fault, which it was. A second
+      // wider pass spreads a point source far enough that nothing blocky
+      // survives the upsample. Four quad renders at 1/36 area each is
+      // negligible next to what it fixes.
+      blur(rtA, rtB, 1.2 / bw, 0)
+      blur(rtB, rtA, 0, 1.2 / bh)
+      blur(rtA, rtB, 3.4 / bw, 0)
+      blur(rtB, rtA, 0, 3.4 / bh)
     }
 
     /* ---- 4. composite to screen ---- */
