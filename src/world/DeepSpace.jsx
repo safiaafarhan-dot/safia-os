@@ -2,6 +2,7 @@ import React, { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
+import { getNoiseTexture } from './noise'
 import { blackHoleState } from './blackHoleState'
 
 /**
@@ -31,65 +32,6 @@ import { blackHoleState } from './blackHoleState'
  * things, not a scatter of small ones. Nothing is inside the reading corridor,
  * and nothing competes with the guardian.
  */
-
-/* --------------------------------------------------------------- noise ---- */
-
-/**
- * One small tileable noise texture, shared by every nebula.
- *
- * Procedural fbm in the fragment shader is the obvious approach, but nebulae
- * cover large areas of screen, so per-pixel fbm is a fill-rate bill paid every
- * frame forever. Baking it once turns that into two cheap samples.
- */
-function makeNoiseTexture(size = 128) {
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = size
-  const ctx = canvas.getContext('2d')
-  const img = ctx.createImageData(size, size)
-
-  const rand = (x, y, s) => {
-    const n = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453
-    return n - Math.floor(n)
-  }
-  const smooth = (t) => t * t * (3 - 2 * t)
-  const octave = (gx, gy, freq, seed) => {
-    const fx = (gx / size) * freq
-    const fy = (gy / size) * freq
-    const x0 = Math.floor(fx)
-    const y0 = Math.floor(fy)
-    const tx = smooth(fx - x0)
-    const ty = smooth(fy - y0)
-    const w = (v) => ((v % freq) + freq) % freq
-    const a = rand(w(x0), w(y0), seed)
-    const b = rand(w(x0 + 1), w(y0), seed)
-    const c = rand(w(x0), w(y0 + 1), seed)
-    const d = rand(w(x0 + 1), w(y0 + 1), seed)
-    return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty
-  }
-
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      let v = 0
-      let amp = 0.5
-      let freq = 4
-      for (let o = 0; o < 4; o++) {
-        v += octave(x, y, freq, o + 1) * amp
-        amp *= 0.5
-        freq *= 2
-      }
-      const i = (y * size + x) * 4
-      const c = Math.round(Math.max(0, Math.min(1, v)) * 255)
-      img.data[i] = img.data[i + 1] = img.data[i + 2] = c
-      img.data[i + 3] = 255
-    }
-  }
-  ctx.putImageData(img, 0, 0)
-
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-  tex.minFilter = THREE.LinearMipmapLinearFilter
-  return tex
-}
 
 const billboardVertex = /* glsl */ `
   varying vec2 vUv;
@@ -519,7 +461,7 @@ function Foreground({ count }) {
 /* ------------------------------------------------------------- assembly --- */
 
 const DeepSpace = ({ tier }) => {
-  const noise = useMemo(() => makeNoiseTexture(128), [])
+  const noise = getNoiseTexture()
 
   const clouds = useMemo(() => {
     const out = []

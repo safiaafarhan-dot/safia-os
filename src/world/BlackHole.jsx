@@ -2,6 +2,7 @@ import React, { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
+import { getNoiseTexture } from './noise'
 import { BH_HORIZON_R, BH_POSITION, bhPresence, blackHoleState } from './blackHoleState'
 
 /**
@@ -78,18 +79,15 @@ const diskFragment = /* glsl */ `
   uniform vec3 uCold;
   uniform vec2 uBeamDir;
 
-  // Cheap hash noise. A texture fetch would be cheaper still, but the disk
-  // covers a small part of the frame and this keeps the component standalone.
-  float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-  }
-  float noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x),
-               mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
-  }
+  // Noise comes from a shared texture now.
+  //
+  // This used to be procedural: two noise() calls per fragment, each doing
+  // four hash() calls - eight sin() and eight fract() per pixel. That was
+  // affordable when the disk covered a small part of the frame and appeared
+  // only briefly. The hole is now a permanent feature covering a large share
+  // of the screen, and that cost became the single most expensive thing added
+  // to every frame. Two texture fetches replace all of it.
+  uniform sampler2D uNoise;
 
   void main() {
     float r = length(vLocal.xy);
@@ -99,12 +97,14 @@ const diskFragment = /* glsl */ `
     // DIFFERENTIAL ROTATION. Material close in orbits much faster than
     // material further out, so the disk shears itself into spiral banding
     // instead of turning as one rigid plate.
-    float omega = 1.0 / pow(max(r, 0.001) * 0.09, 1.5);
+    // 1/x^1.5 written as inversesqrt(x)/x: same curve, no pow().
+    float rr = max(r, 0.001) * 0.09;
+    float omega = inversesqrt(rr) / rr;
     float swirl = angle + uTime * omega * 0.02;
 
     // Two noise octaves along the sheared coordinate: filaments, not fog.
-    float n = noise(vec2(swirl * 2.4, t * 7.0)) * 0.65
-            + noise(vec2(swirl * 5.1, t * 15.0)) * 0.35;
+    float n = texture2D(uNoise, vec2(swirl * 0.38, t * 1.1)).r * 0.65
+            + texture2D(uNoise, vec2(swirl * 0.81, t * 2.4)).r * 0.35;
 
     // Radial falloff: incandescent at the inner edge, gone at the outer.
     float body = pow(1.0 - t, 2.2) * smoothstep(0.0, 0.06, t);
@@ -272,6 +272,7 @@ export default function BlackHole({ enabled = true, debrisCount = 900, reducedMo
   const diskUniforms = useMemo(
     () => ({
       uTime: { value: 0 },
+      uNoise: { value: getNoiseTexture() },
       uInner: { value: DISK_INNER },
       uOuter: { value: DISK_OUTER },
       uOpacity: { value: 0 },
