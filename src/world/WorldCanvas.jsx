@@ -8,6 +8,7 @@ import CursorField from './CursorField'
 import DeepSpace from './DeepSpace'
 import Encounters from './Encounters'
 import EnergyField from './EnergyField'
+import GlassAssembly from './GlassAssembly'
 import CameraRig, { WorldMood } from './CameraRig'
 import LightRig from './LightRig'
 import WorldPointer from './WorldPointer'
@@ -31,9 +32,9 @@ const flag = (name) =>
  * resolution further if the machine still can't hold frame rate.
  */
 const TIERS = {
-  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, blackHole: true, bhDebris: 900, galaxy: 5000, nebulae: 6, singularities: true, foreground: 14, beltRocks: 220, clusterStars: 900, shardCount: 90, floaters: 260, cursorMotes: 300, dustVeil: 700, crystals: 52, energyTrails: 210, dpr: [1, 1.75] },
-  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, blackHole: true, bhDebris: 450, galaxy: 2400, nebulae: 4, singularities: true, foreground: 9, beltRocks: 120, clusterStars: 450, shardCount: 48, floaters: 140, cursorMotes: 170, dustVeil: 360, crystals: 28, energyTrails: 120, dpr: [1, 1.4] },
-  low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, grade: false, blackHole: true, bhDebris: 260, galaxy: 900, nebulae: 3, singularities: false, foreground: 5, beltRocks: 50, clusterStars: 180, shardCount: 20, floaters: 60, cursorMotes: 80, dustVeil: 150, crystals: 12, energyTrails: 55, dpr: 1 },
+  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, blackHole: true, bhDebris: 900, galaxy: 5000, nebulae: 6, singularities: true, foreground: 14, beltRocks: 220, clusterStars: 900, shardCount: 90, floaters: 260, cursorMotes: 300, dustVeil: 700, crystals: 16, energyTrails: 100, dpr: [1, 1.75] },
+  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, blackHole: true, bhDebris: 450, galaxy: 2400, nebulae: 4, singularities: true, foreground: 9, beltRocks: 120, clusterStars: 450, shardCount: 48, floaters: 140, cursorMotes: 170, dustVeil: 360, crystals: 10, energyTrails: 60, dpr: [1, 1.4] },
+  low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, grade: false, blackHole: true, bhDebris: 260, galaxy: 900, nebulae: 3, singularities: false, foreground: 5, beltRocks: 50, clusterStars: 180, shardCount: 20, floaters: 60, cursorMotes: 80, dustVeil: 150, crystals: 6, energyTrails: 30, dpr: 1 },
 }
 
 const pickTier = () => {
@@ -138,6 +139,12 @@ const WorldCanvas = ({ reducedMotion = false }) => {
           glass to stone rather than showing everything at once. */}
       <Crystals count={effectiveTier.crystals} reducedMotion={reducedMotion} />
       <EnergyField count={effectiveTier.energyTrails} reducedMotion={reducedMotion} />
+
+      {/* The one scripted event in the opening: a structure that gathers itself
+          out of loose shards, holds while energy runs through it, and comes
+          apart again. Deliberately singular -- a field of things animating
+          reads as effects, one thing worth watching reads as a world. */}
+      <GlassAssembly reducedMotion={reducedMotion} />
 
       <Atmosphere tier={effectiveTier} reducedMotion={reducedMotion} />
       <WorldPointer />

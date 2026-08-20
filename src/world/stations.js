@@ -59,19 +59,19 @@ const station = (i, id, { x = 0, y = 0, lookX = 0, lookY = 0, mood }) => ({
 export const STATIONS = [
   station(0, 'hero', {
     x: 0, y: 1.0, lookX: 0.0, lookY: 0.6,
-    mood: { coolPower: 0.92, fogNear: 14, fogFar: 118, accent: '#ff2d4d', ambient: 0.74, density: 0.82, light: 1.28, accentPower: 0.32, exposure: 1.16, bloom: 0.62, vignette: 0.78 },
+    mood: { coolPower: 0.92, fogNear: 14, fogFar: 118, accent: '#ff2d4d', ambient: 0.74, density: 0.82, light: 1.28, accentPower: 0.54, exposure: 1.16, bloom: 0.62, vignette: 0.78 },
   }),
   station(1, 'about', {
     x: -7, y: 4.5, lookX: -0.5, lookY: 0.9,
-    mood: { coolPower: 1.15, fogNear: 15, fogFar: 124, accent: '#b3122e', ambient: 0.84, density: 0.82, light: 1.3, accentPower: 0.3, exposure: 1.12, bloom: 0.62, vignette: 0.76 },
+    mood: { coolPower: 1.15, fogNear: 15, fogFar: 124, accent: '#b3122e', ambient: 0.84, density: 0.82, light: 1.3, accentPower: 0.5, exposure: 1.12, bloom: 0.62, vignette: 0.76 },
   }),
   station(2, 'skills', {
     x: 5, y: -4.0, lookX: 0.4, lookY: -0.4,
-    mood: { coolPower: 1.25, fogNear: 17, fogFar: 132, accent: '#ff2d4d', ambient: 0.82, density: 0.75, light: 1.55, accentPower: 0.42, exposure: 1.16, bloom: 0.7, vignette: 0.82 },
+    mood: { coolPower: 1.25, fogNear: 17, fogFar: 132, accent: '#ff2d4d', ambient: 0.82, density: 0.75, light: 1.55, accentPower: 0.6, exposure: 1.16, bloom: 0.7, vignette: 0.82 },
   }),
   station(3, 'experience', {
     x: 13, y: 2.0, lookX: 0.7, lookY: 0.3,
-    mood: { coolPower: 0.6, fogNear: 15, fogFar: 118, accent: '#b3122e', ambient: 0.62, density: 1.05, light: 1.22, accentPower: 0.4, exposure: 0.99, bloom: 0.52, vignette: 1.06 },
+    mood: { coolPower: 0.6, fogNear: 15, fogFar: 118, accent: '#b3122e', ambient: 0.62, density: 1.05, light: 1.22, accentPower: 0.58, exposure: 0.99, bloom: 0.52, vignette: 1.06 },
   }),
   station(4, 'projects', {
     x: 2, y: 8.0, lookX: 0.2, lookY: 0.8,

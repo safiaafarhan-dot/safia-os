@@ -502,8 +502,13 @@ function FloatingField({ count }) {
 
     for (let i = 0; i < bits.length; i++) {
       const b = bits[i]
-      const distant = THREE.MathUtils.smoothstep(b.radius, 34, 70)
-      const presence = arrived + (1 - arrived) * distant * 0.28
+      // Nothing of this layer survives into the intro any more. Keeping the
+      // distant ones at 28% was meant to preserve motion, but a scatter of
+      // identical tetrahedra is repetitive geometry with no compositional
+      // job -- it read as debris around the title. Motion in the opening now
+      // comes from the crystals, the dust and the two travelling lights, all
+      // of which are there for a reason.
+      const presence = arrived
       const travel = (b.offset + time * b.speed) % 1
       let px = Math.cos(b.angle) * b.radius
       let py = Math.sin(b.angle) * b.radius * 0.45 + b.yBias

@@ -572,6 +572,14 @@ function CorridorStrata({ count }) {
 /* ---------------------------------------------------------- fragments ----- */
 
 /** Mid-depth debris: solid, lit, and slowly tumbling. Catches the key light. */
+/**
+ * Small metal chunks orbiting the flight path.
+ *
+ * These belong to the MATTER band with the rest of the physical layers. They
+ * used to run for the whole journey, which put a scatter of grey shrapnel
+ * around the title -- objects with no compositional job, which is exactly the
+ * kind of thing that makes a designed frame look accidental.
+ */
 function FloatingFragments({ count }) {
   const meshRef = useRef()
   const fragSafe = useRef(new THREE.Vector3())
@@ -608,7 +616,13 @@ function FloatingFragments({ count }) {
   useFrame(() => {
     const mesh = meshRef.current
     if (!mesh) return
-    const { time, energy } = scrollState()
+    const { time, energy, station } = scrollState()
+    const arrived = THREE.MathUtils.smoothstep(station, 3.2, 4.2)
+    if (arrived <= 0.001) {
+      if (mesh.visible) mesh.visible = false
+      return
+    }
+    mesh.visible = true
     // NOTE: these used to fade out against blackHoleState.presence, on the
     // premise that the corridor "gave way" as a transient black hole took the
     // frame. The hole is now a permanent deep-space feature whose presence
@@ -623,7 +637,7 @@ function FloatingFragments({ count }) {
         f.position[2]
       )
       // Fragments swell slightly with world energy — the environment reacting.
-      const s = f.scale * (1 + energy * 0.25)
+      const s = f.scale * (1 + energy * 0.25) * arrived
 
       // SAFE ZONE. These orbit 16-34 units out, which is close enough that a
       // handful sit inside the reading column at any moment. Individually they

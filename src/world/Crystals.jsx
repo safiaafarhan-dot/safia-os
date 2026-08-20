@@ -100,11 +100,11 @@ export default function Crystals({ count = 46, reducedMotion = false }) {
         // smear on the lens, not depth.
         // Pushed further out and spread wider. The first pass clustered them
         // close to the lens where they crowded the lower half of frame.
-        radius: 15 + Math.pow(Math.random(), 0.7) * 34,
+        radius: 20 + Math.pow(Math.random(), 0.7) * 34,
         yBias: (Math.random() - 0.5) * 30,
         offset: Math.random(),
         speed: 0.012 + Math.random() * 0.03,
-        size: 0.24 + Math.pow(Math.random(), 2.4) * 0.95,
+        size: 0.2 + Math.pow(Math.random(), 2.6) * 0.5,
         spin: (Math.random() - 0.5) * 0.22,
         phase: Math.random() * Math.PI * 2,
         tint: PALETTE[Math.floor(Math.random() * PALETTE.length)],

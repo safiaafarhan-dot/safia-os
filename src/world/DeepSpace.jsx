@@ -81,7 +81,7 @@ const galaxyFragment = /* glsl */ `
  * unresolved stars, and a point cloud gets the grain of that for free —
  * a blurred sprite always reads as a sticker.
  */
-function Galaxy({ count, position, rotation, radius, tint }) {
+function Galaxy({ count, position, rotation, radius, tint, brightness = 0.42 }) {
   const groupRef = useRef()
   const matRef = useRef()
 
@@ -118,7 +118,7 @@ function Galaxy({ count, position, rotation, radius, tint }) {
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
-      uOpacity: { value: 0.42 },
+      uOpacity: { value: 0.42 },  // overwritten per instance below
       uCore: { value: new THREE.Color(tint.core) },
       uArm: { value: new THREE.Color(tint.arm) },
     }),
@@ -127,7 +127,14 @@ function Galaxy({ count, position, rotation, radius, tint }) {
 
   useFrame(() => {
     const s = scrollState()
-    if (matRef.current) matRef.current.uniforms.uTime.value = s.time
+    if (matRef.current) {
+      matRef.current.uniforms.uTime.value = s.time
+      // Very slow independent breathing. A galaxy that never changes reads as
+      // wallpaper; at this rate the change is below conscious notice but the
+      // sky is never twice the same.
+      matRef.current.uniforms.uOpacity.value =
+        brightness * (0.88 + 0.12 * Math.sin(s.time * 0.035 + radius))
+    }
     // Turning almost imperceptibly. At this distance it should read as alive,
     // never as spinning.
     if (groupRef.current) groupRef.current.rotation.y = s.time * 0.004
@@ -536,19 +543,56 @@ const DeepSpace = ({ tier }) => {
           because its centre crossed a column would swing the whole backdrop.
           Both are placed well off the flight axis instead, which is the right
           tool for a body at that scale. */}
+      {/* FOUR galaxies at deliberately different depths and brightnesses, so
+          scale is readable: a faint smudge behind a visible spiral behind a
+          detailed one tells the eye how far this space goes. One at a single
+          distance tells it nothing.
+
+          All are placed to the RIGHT of, or far above, the flight axis. The
+          hero's text column sits left of centre, and the brief is explicit
+          that nothing large belongs behind it.
+
+          They are also exempt from the reading-column keep-out: at 95-140
+          units across and 200-760 out they read as sky, and shoving something
+          that large sideways because its centre crossed a column would swing
+          the whole backdrop. Placement is the right tool at this scale. */}
+
+      {/* Nearest and most detailed. Well right of frame. */}
       <Galaxy
         count={tier.galaxy}
-        position={[-330, 120, -200]}
-        rotation={[0.9, 0.4, 0.2]}
+        position={[300, 150, -230]}
+        rotation={[0.9, -0.5, 0.2]}
         radius={95}
+        brightness={0.5}
         tint={{ core: '#ffd9b8', arm: '#5d7099' }}
       />
+      {/* Mid distance, low and right. */}
       <Galaxy
         count={Math.round(tier.galaxy * 0.7)}
-        position={[400, -150, -520]}
+        position={[430, -170, -520]}
         rotation={[-0.6, 1.1, -0.3]}
         radius={120}
+        brightness={0.36}
         tint={{ core: '#ffc9a8', arm: '#6b5f86' }}
+      />
+      {/* Far, faint, and high above the title rather than behind it. */}
+      <Galaxy
+        count={Math.round(tier.galaxy * 0.42)}
+        position={[-260, 300, -600]}
+        rotation={[1.2, 0.7, -0.4]}
+        radius={110}
+        brightness={0.17}
+        tint={{ core: '#cfe0ff', arm: '#4b6fa0' }}
+      />
+      {/* Furthest: barely there, a violet smudge that gives the frame a floor
+          of distance for everything else to be measured against. */}
+      <Galaxy
+        count={Math.round(tier.galaxy * 0.3)}
+        position={[120, -260, -760]}
+        rotation={[-0.4, -0.9, 0.6]}
+        radius={140}
+        brightness={0.11}
+        tint={{ core: '#e0cdff', arm: '#5a4a86' }}
       />
 
       <Nebulae clouds={clouds} noise={noise} />
