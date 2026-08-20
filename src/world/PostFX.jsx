@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { scrollState } from '../state/scrollStore'
 import { sampleMood } from './stations'
+import { blackHoleState } from './blackHoleState'
 
 /**
  * The photographic grade.
@@ -79,6 +80,10 @@ const finalFragment = /* glsl */ `
   varying vec2 vUv;
   uniform sampler2D tScene;
   uniform sampler2D tBloom;
+  uniform vec2  uBH;
+  uniform float uBHRadius;
+  uniform float uBHStrength;
+  uniform float uAspect;
   uniform float uBloom;
   uniform float uVignette;
   uniform float uAberration;
@@ -91,15 +96,37 @@ const finalFragment = /* glsl */ `
     vec2 centre = vUv - 0.5;
     float r = length(centre);
 
+    // GRAVITATIONAL LENSING.
+    //
+    // Light bending has to distort what is ALREADY BEHIND the hole — stars,
+    // corridor architecture, the far side of its own disk — so it cannot live
+    // on the object. It lives here, warping the rendered frame around the
+    // hole's projected screen position.
+    //
+    // The displacement falls off as 1/r^2 from the horizon, which is the right
+    // shape: strong enough at the rim to smear the background into arcs,
+    // effectively gone a few radii out. Clamped, because near r=0 the term
+    // diverges and would tear the image apart.
+    vec2 lensUv = vUv;
+    if (uBHStrength > 0.001) {
+      vec2 d = vUv - uBH;
+      d.x *= uAspect;
+      float dist = max(length(d), 0.0008);
+      float pull = uBHStrength * (uBHRadius * uBHRadius) / (dist * dist);
+      pull = min(pull, 0.42);
+      vec2 dir = normalize(vec2(d.x / uAspect, d.y));
+      lensUv = vUv - dir * pull * dist;
+    }
+
     // Chromatic aberration, scaled by distance from centre so the middle of
     // the frame — where the text lives — stays perfectly sharp.
     vec2 offset = centre * uAberration * r;
     vec3 col;
-    col.r = texture2D(tScene, vUv + offset).r;
-    col.g = texture2D(tScene, vUv).g;
-    col.b = texture2D(tScene, vUv - offset).b;
+    col.r = texture2D(tScene, lensUv + offset).r;
+    col.g = texture2D(tScene, lensUv).g;
+    col.b = texture2D(tScene, lensUv - offset).b;
 
-    col += texture2D(tBloom, vUv).rgb * uBloom;
+    col += texture2D(tBloom, lensUv).rgb * uBloom;
 
     // Vignette. Multiplied, not subtracted, so it darkens without crushing
     // colour toward grey at the edges.
@@ -172,6 +199,10 @@ export default function PostFX({ reducedMotion = false }) {
       uniforms: {
         tScene: { value: null },
         tBloom: { value: null },
+        uBH: { value: new THREE.Vector2(0.5, 0.5) },
+        uBHRadius: { value: 0 },
+        uBHStrength: { value: 0 },
+        uAspect: { value: 1 },
         uBloom: { value: 0.7 },
         uVignette: { value: 1 },
         uAberration: { value: 0 },
@@ -267,6 +298,12 @@ export default function PostFX({ reducedMotion = false }) {
     const targetAb = reducedMotion ? 0 : Math.min(0.0035, Math.abs(s.velocity) * 0.0016) + 0.0005
     u.uAberration.value += (targetAb - u.uAberration.value) * Math.min(1, delta * 6)
     u.uGrain.value = reducedMotion ? 0.018 : 0.03
+
+    // The black hole publishes where it is; the warp is applied here.
+    u.uBH.value.set(blackHoleState.x, blackHoleState.y)
+    u.uBHRadius.value = blackHoleState.radius
+    u.uBHStrength.value = blackHoleState.strength
+    u.uAspect.value = state.size.width / Math.max(1, state.size.height)
 
     quad.material = finalMat
     gl.setRenderTarget(null)

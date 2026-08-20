@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import { PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
 import Atmosphere from './Atmosphere'
+import BlackHole from './BlackHole'
 import CameraRig, { WorldMood } from './CameraRig'
 import LightRig from './LightRig'
 import WorldPointer from './WorldPointer'
@@ -27,9 +28,9 @@ const flag = (name) =>
  * resolution further if the machine still can't hold frame rate.
  */
 const TIERS = {
-  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, dpr: [1, 1.75] },
-  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, dpr: [1, 1.4] },
-  low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, grade: false, dpr: 1 },
+  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, blackHole: true, bhDebris: 1400, dpr: [1, 1.75] },
+  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, blackHole: true, bhDebris: 700, dpr: [1, 1.4] },
+  low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, grade: false, blackHole: true, bhDebris: 260, dpr: 1 },
 }
 
 const pickTier = () => {
@@ -113,6 +114,11 @@ const WorldCanvas = ({ reducedMotion = false }) => {
       <WorldMood fogRef={fogRef} />
 
       <Atmosphere tier={effectiveTier} reducedMotion={reducedMotion} />
+      <BlackHole
+        enabled={tier.blackHole}
+        debrisCount={tier.bhDebris}
+        reducedMotion={reducedMotion}
+      />
       <StationProps tier={effectiveTier} reducedMotion={reducedMotion} />
       <WorldPointer />
 
