@@ -336,10 +336,14 @@ function Singularity({ position, radius, tilt }) {
         <sphereGeometry args={[radius, 24, 16]} />
         <meshBasicMaterial color="#000000" fog={false} toneMapped={false} />
       </mesh>
+      {/* Photon rim, neutral rather than warm. This was the only golden
+          element on screen that was not a star, galaxy or planet, so it is the
+          one that could be removed without touching the palette of anything in
+          the preserve list. */}
       <mesh ref={ringRef} renderOrder={4}>
         <ringGeometry args={[radius * 1.02, radius * 1.14, 64]} />
         <meshBasicMaterial
-          color="#ffd2bd"
+          color="#dfe7f2"
           transparent
           opacity={0.7}
           side={THREE.DoubleSide}
