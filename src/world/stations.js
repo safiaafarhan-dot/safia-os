@@ -59,7 +59,7 @@ const station = (i, id, { x = 0, y = 0, lookX = 0, lookY = 0, mood }) => ({
 export const STATIONS = [
   station(0, 'hero', {
     x: 0, y: 1.0, lookX: 0.0, lookY: 0.6,
-    mood: { coolPower: 0.92, fogNear: 14, fogFar: 118, accent: '#ff2d4d', ambient: 0.74, density: 0.82, light: 1.28, accentPower: 0.54, exposure: 1.16, bloom: 0.62, vignette: 0.78 },
+    mood: { coolPower: 0.92, fogNear: 14, fogFar: 118, accent: '#ff2d4d', ambient: 0.74, density: 0.82, light: 1.28, accentPower: 0.66, exposure: 1.16, bloom: 0.62, vignette: 0.78 },
   }),
   station(1, 'about', {
     x: -7, y: 4.5, lookX: -0.5, lookY: 0.9,
@@ -67,15 +67,15 @@ export const STATIONS = [
   }),
   station(2, 'skills', {
     x: 5, y: -4.0, lookX: 0.4, lookY: -0.4,
-    mood: { coolPower: 1.25, fogNear: 17, fogFar: 132, accent: '#ff2d4d', ambient: 0.82, density: 0.75, light: 1.55, accentPower: 0.6, exposure: 1.16, bloom: 0.7, vignette: 0.82 },
+    mood: { coolPower: 1.25, fogNear: 17, fogFar: 132, accent: '#ff2d4d', ambient: 0.82, density: 0.75, light: 1.55, accentPower: 0.74, exposure: 1.16, bloom: 0.7, vignette: 0.82 },
   }),
   station(3, 'experience', {
     x: 13, y: 2.0, lookX: 0.7, lookY: 0.3,
-    mood: { coolPower: 0.6, fogNear: 15, fogFar: 118, accent: '#b3122e', ambient: 0.62, density: 1.05, light: 1.22, accentPower: 0.58, exposure: 0.99, bloom: 0.52, vignette: 1.06 },
+    mood: { coolPower: 0.6, fogNear: 15, fogFar: 118, accent: '#b3122e', ambient: 0.62, density: 1.05, light: 1.22, accentPower: 0.72, exposure: 0.99, bloom: 0.52, vignette: 1.06 },
   }),
   station(4, 'projects', {
     x: 2, y: 8.0, lookX: 0.2, lookY: 0.8,
-    mood: { coolPower: 0.72, fogNear: 18, fogFar: 125, accent: '#ff2d4d', ambient: 0.72, density: 0.7, light: 1.65, accentPower: 0.88, exposure: 1.2, bloom: 0.8, vignette: 0.9 },
+    mood: { coolPower: 0.72, fogNear: 18, fogFar: 125, accent: '#ff2d4d', ambient: 0.72, density: 0.7, light: 1.65, accentPower: 0.96, exposure: 1.2, bloom: 0.8, vignette: 0.9 },
   }),
   station(5, 'ailab', {
     x: -11, y: 1.5, lookX: -0.6, lookY: 0.2,
