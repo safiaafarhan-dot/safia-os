@@ -2,265 +2,228 @@ import React, { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
-import { PALETTE, sampleMood } from './stations'
+import { STATIONS, STATION_SPACING, WORLD_DEPTH } from './stations'
 
 /**
- * The air, the light and the far distance.
+ * The living environment the camera flies through.
  *
- * Nothing in here is a prop. There are no ships, rings, panels or debris —
- * that vocabulary is what made the previous direction read as stock sci-fi.
- * What is here instead is the four things a photographed space actually needs:
+ * Everything in here moves on its own, forever, with no input — the brief is a
+ * laboratory that is running whether or not anyone is watching it. The motion
+ * is deliberately slow and low-contrast: this is depth and atmosphere, not
+ * decoration, and it must never compete with the text sitting in front of it.
  *
- *   1. A GRADED SKY, so the frame is a space rather than an unlit rectangle.
- *      There is no flat black anywhere on this page; every pixel of background
- *      carries a gradient, a dither and a light source somewhere off frame.
- *   2. VOLUMETRIC HAZE that churns, so the air between camera and subject is
- *      visible. Haze separates foreground from background without needing more
- *      objects — which is how you get depth without clutter.
- *   3. A DEEP FIELD far beyond the subject, for parallax. Without it the
- *      camera's orbit is invisible, because there is nothing to orbit against.
- *   4. DISTANT STRUCTURE — a few enormous, near-black silhouettes barely above
- *      the fog. Read as scale and as something unexplained, never as detail.
- *
- * All continuous motion is driven from a single uTime uniform, so tens of
- * thousands of points cost one number per frame regardless of count.
+ * All continuous motion is computed in vertex shaders from a single uTime
+ * uniform. Animating tens of thousands of particles by writing to a
+ * Float32Array each frame is what makes background particle systems expensive;
+ * driving them from a uniform costs one number per frame regardless of count.
  */
 
-/**
- * Tileable value-noise texture, generated once on a 2D canvas.
- *
- * Procedural fbm in the fragment shader is the obvious way to do haze, but the
- * haze planes cover most of the screen, so per-pixel fbm is a fill-rate bill
- * paid every frame forever. Baking it into a small texture turns that into two
- * cheap samples.
- */
-function makeNoiseTexture(size = 256) {
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = size
-  const ctx = canvas.getContext('2d')
-  const img = ctx.createImageData(size, size)
+const DUST_SLAB = 90 // depth of the particulate volume that follows the camera
 
-  // Deterministic: haze that reshuffles on every reload reads as noise rather
-  // than as a place.
-  const rand = (x, y, s) => {
-    const n = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453
-    return n - Math.floor(n)
-  }
-  const smooth = (t) => t * t * (3 - 2 * t)
+/* ---------------------------------------------------------------- dust ---- */
 
-  const octave = (gx, gy, freq, seed) => {
-    const fx = (gx / size) * freq
-    const fy = (gy / size) * freq
-    const x0 = Math.floor(fx)
-    const y0 = Math.floor(fy)
-    const tx = smooth(fx - x0)
-    const ty = smooth(fy - y0)
-    const w = (v) => ((v % freq) + freq) % freq
-    const a = rand(w(x0), w(y0), seed)
-    const b = rand(w(x0 + 1), w(y0), seed)
-    const c = rand(w(x0), w(y0 + 1), seed)
-    const d = rand(w(x0 + 1), w(y0 + 1), seed)
-    return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty
-  }
+const dustVertex = /* glsl */ `
+  attribute float aSpeed;
+  attribute float aSize;
+  attribute float aPhase;
 
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      let v = 0
-      let amp = 0.5
-      let freq = 4
-      for (let o = 0; o < 5; o++) {
-        v += octave(x, y, freq, o + 1) * amp
-        amp *= 0.5
-        freq *= 2
-      }
-      const i = (y * size + x) * 4
-      const c = Math.round(Math.max(0, Math.min(1, v)) * 255)
-      img.data[i] = c
-      img.data[i + 1] = c
-      img.data[i + 2] = c
-      img.data[i + 3] = 255
-    }
-  }
-  ctx.putImageData(img, 0, 0)
-
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-  tex.minFilter = THREE.LinearMipmapLinearFilter
-  tex.magFilter = THREE.LinearFilter
-  return tex
-}
-
-const billboardVertex = /* glsl */ `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`
-
-/* ----------------------------------------------------------------- sky ---- */
-
-const skyFragment = /* glsl */ `
-  varying vec3 vDir;
-  uniform vec3 uZenith;
-  uniform vec3 uNadir;
-  uniform vec3 uGlow;
-  uniform float uGlowPower;
-  uniform vec3 uGlowDir;
   uniform float uTime;
+  uniform float uCamZ;
+  uniform float uSlab;
+  uniform vec2  uPointer;
+  uniform float uEnergy;
+
+  varying float vAlpha;
+  varying float vDepth;
 
   void main() {
-    vec3 dir = normalize(vDir);
-    float h = dir.y * 0.5 + 0.5;
-    vec3 col = mix(uNadir, uZenith, smoothstep(0.0, 0.92, h));
+    // Stream the mote toward the camera and wrap it back to the far edge of
+    // the slab. Because the slab is anchored to uCamZ, the field is infinite:
+    // the camera can travel the whole corridor and never outrun it.
+    float travel = mod(aPhase + uTime * aSpeed, 1.0);
+    float zRel = travel * uSlab;
 
-    // An off-frame source bleeding into the sky. Wide and weak: it should
-    // register as "there is something bright over there", never as a flare.
-    float d = max(dot(dir, normalize(uGlowDir)), 0.0);
-    col += uGlow * pow(d, 2.6) * uGlowPower;
+    vec3 pos = position;
+    pos.z = uCamZ - uSlab + zRel;
 
-    // Cold counter-glow, so the dark half of the sky is never dead.
-    float d2 = max(dot(dir, normalize(-uGlowDir)), 0.0);
-    col += vec3(0.042, 0.056, 0.086) * pow(d2, 3.0);
+    // Nearer motes swing further with the cursor, which is the parallax cue
+    // that sells the volume as something the camera is actually inside of.
+    float near = 1.0 - travel;
+    pos.x += uPointer.x * near * 2.2;
+    pos.y += uPointer.y * near * 1.4;
 
-    // Hash dither. Very dark wide gradients band badly on 8-bit displays, and
-    // banding is the single most "cheap render" artefact there is.
-    float n = fract(sin(dot(gl_FragCoord.xy + fract(uTime) * 91.0, vec2(12.9898, 78.233))) * 43758.5453);
-    col += (n - 0.5) * 0.007;
+    // Energy stirs the field laterally rather than speeding it up, so
+    // interaction reads as disturbance instead of fast-forward.
+    pos.x += sin(uTime * 0.6 + aPhase * 40.0) * uEnergy * 0.5;
+    pos.y += cos(uTime * 0.5 + aPhase * 33.0) * uEnergy * 0.35;
 
-    gl_FragColor = vec4(col, 1.0);
+    vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+    gl_Position = projectionMatrix * mv;
+
+    // Fade in at the far edge and out as it passes the camera, so motes never
+    // pop into or out of existence.
+    vAlpha = smoothstep(0.0, 0.18, travel) * smoothstep(1.0, 0.72, travel);
+    vDepth = travel;
+
+    gl_PointSize = aSize * (300.0 / max(-mv.z, 1.0)) * (1.0 + uEnergy * 0.3);
   }
 `
 
-function Sky() {
+const dustFragment = /* glsl */ `
+  uniform vec3 uColor;
+  uniform vec3 uAccent;
+  uniform float uEnergy;
+
+  varying float vAlpha;
+  varying float vDepth;
+
+  void main() {
+    // Round, soft-edged mote. Discarding outside the disc keeps the sprite
+    // from reading as a square at large point sizes.
+    vec2 uv = gl_PointCoord - 0.5;
+    float d = length(uv);
+    if (d > 0.5) discard;
+    float soft = smoothstep(0.5, 0.06, d);
+
+    // A minority of motes carry the station accent, so the field picks up the
+    // colour of wherever the camera currently is without turning into confetti.
+    vec3 col = mix(uColor, uAccent, step(0.86, vDepth) * (0.5 + uEnergy * 0.5));
+
+    gl_FragColor = vec4(col, soft * vAlpha * 0.55);
+  }
+`
+
+function DustField({ count, quality }) {
   const matRef = useRef()
-  const meshRef = useRef()
+
+  const { positions, speeds, sizes, phases } = useMemo(() => {
+    const positions = new Float32Array(count * 3)
+    const speeds = new Float32Array(count)
+    const sizes = new Float32Array(count)
+    const phases = new Float32Array(count)
+
+    for (let i = 0; i < count; i++) {
+      // Hollow-ish distribution: keep the very centre of the corridor clear so
+      // motes don't crawl across the reader's text.
+      const angle = Math.random() * Math.PI * 2
+      const radius = 3.2 + Math.pow(Math.random(), 0.65) * 16
+      positions[i * 3] = Math.cos(angle) * radius
+      positions[i * 3 + 1] = Math.sin(angle) * radius * 0.55
+      positions[i * 3 + 2] = 0 // z is authored entirely in the shader
+      speeds[i] = 0.012 + Math.random() * 0.05
+      sizes[i] = (0.6 + Math.random() * 2.4) * quality
+      phases[i] = Math.random()
+    }
+    return { positions, speeds, sizes, phases }
+  }, [count, quality])
 
   const uniforms = useMemo(
     () => ({
-      // Never #000. A near-black with a cool cast reads as atmosphere with
-      // depth; pure black reads as an unlit surface.
-      uZenith: { value: new THREE.Color('#0a0f1a') },
-      uNadir: { value: new THREE.Color('#03050a') },
-      uGlow: { value: new THREE.Color(PALETTE.crimsonDeep) },
-      uGlowPower: { value: 0.4 },
-      uGlowDir: { value: new THREE.Vector3(0.6, 0.3, -1) },
       uTime: { value: 0 },
+      uCamZ: { value: 0 },
+      uSlab: { value: DUST_SLAB },
+      uPointer: { value: new THREE.Vector2() },
+      uEnergy: { value: 0 },
+      uColor: { value: new THREE.Color('#8f9099') },
+      uAccent: { value: new THREE.Color('#b3122e') },
     }),
     []
   )
 
   useFrame((state) => {
-    const s = scrollState()
-    if (meshRef.current) meshRef.current.position.copy(state.camera.position)
     const u = matRef.current?.uniforms
     if (!u) return
+    const s = scrollState()
     u.uTime.value = s.time
-    // The source swings slowly as the rig orbits, so the sky is never the same
-    // twice across a scroll — the background is part of the choreography.
-    const a = s.time * 0.017 + s.station * 0.72
-    u.uGlowDir.value.set(Math.sin(a), 0.18 + Math.cos(a * 0.6) * 0.3, Math.cos(a))
-    u.uGlowPower.value = 0.3 + sampleMood(s.station, 'accentPower') * 0.42 + s.energy * 0.16
+    u.uCamZ.value = state.camera.position.z
+    u.uPointer.value.set(s.pointerSmoothX, s.pointerSmoothY)
+    u.uEnergy.value = s.energy
   })
 
   return (
-    <mesh ref={meshRef} renderOrder={-1000} frustumCulled={false}>
-      <sphereGeometry args={[600, 32, 24]} />
+    <points frustumCulled={false}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-aSpeed" count={count} array={speeds} itemSize={1} />
+        <bufferAttribute attach="attributes-aSize" count={count} array={sizes} itemSize={1} />
+        <bufferAttribute attach="attributes-aPhase" count={count} array={phases} itemSize={1} />
+      </bufferGeometry>
       <shaderMaterial
         ref={matRef}
         uniforms={uniforms}
-        vertexShader={/* glsl */ `
-          varying vec3 vDir;
-          void main() {
-            vDir = position;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `}
-        fragmentShader={skyFragment}
-        side={THREE.BackSide}
+        vertexShader={dustVertex}
+        fragmentShader={dustFragment}
+        transparent
         depthWrite={false}
-        fog={false}
+        blending={THREE.AdditiveBlending}
       />
-    </mesh>
+    </points>
   )
 }
 
-/* ----------------------------------------------------------- deep field --- */
+/* --------------------------------------------------------------- stars ---- */
 
-const deepVertex = /* glsl */ `
+const starVertex = /* glsl */ `
   attribute float aSize;
   attribute float aPhase;
-  attribute float aWarm;
   uniform float uTime;
   varying float vTwinkle;
-  varying float vWarm;
 
   void main() {
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     gl_Position = projectionMatrix * mv;
-    // Slow, out-of-phase breathing. Fast twinkle reads as noise, not as sky.
-    vTwinkle = 0.5 + 0.5 * sin(uTime * 0.24 + aPhase * 6.283);
-    vWarm = aWarm;
+    // Slow, out-of-phase breathing. Fast twinkle would read as noise.
+    vTwinkle = 0.55 + 0.45 * sin(uTime * 0.35 + aPhase * 6.283);
     gl_PointSize = aSize;
   }
 `
 
-const deepFragment = /* glsl */ `
+const starFragment = /* glsl */ `
   varying float vTwinkle;
-  varying float vWarm;
   void main() {
     vec2 uv = gl_PointCoord - 0.5;
     float d = length(uv);
     if (d > 0.5) discard;
-    // Tight core plus faint halo — the halo is what the bloom pass turns into
-    // a real light rather than a lit pixel.
-    float core = smoothstep(0.24, 0.0, d);
-    float halo = smoothstep(0.5, 0.0, d) * 0.22;
-    vec3 cool = vec3(0.60, 0.67, 0.82);
-    vec3 warm = vec3(0.92, 0.62, 0.60);
-    gl_FragColor = vec4(mix(cool, warm, vWarm), (core + halo) * vTwinkle * 0.72);
+    gl_FragColor = vec4(vec3(0.62, 0.65, 0.74), smoothstep(0.5, 0.0, d) * vTwinkle * 0.4);
   }
 `
 
 /**
- * The far distance, in two shells at different radii.
- *
- * Two shells rather than one because the camera ORBITS: a single shell at a
- * huge radius is effectively static, and a static distance makes an orbit
- * invisible. The inner shell sliding against the outer one is what tells the
- * eye the camera is moving through a space rather than turning on the spot.
+ * The furthest layer. Sits well beyond the fog's far plane at a huge radius so
+ * it barely shifts as the camera travels — which is exactly what makes the
+ * corridor read as open space rather than a closed tube.
  */
-function DeepShell({ count, radius, sizeScale, spin }) {
+function StarField({ count }) {
   const matRef = useRef()
   const groupRef = useRef()
 
-  const { positions, sizes, phases, warms } = useMemo(() => {
+  const { positions, sizes, phases } = useMemo(() => {
     const positions = new Float32Array(count * 3)
     const sizes = new Float32Array(count)
     const phases = new Float32Array(count)
-    const warms = new Float32Array(count)
     for (let i = 0; i < count; i++) {
-      const r = radius * (0.7 + Math.random() * 0.5)
+      const r = 260 + Math.random() * 220
       const theta = Math.random() * Math.PI * 2
       const phi = Math.acos(2 * Math.random() - 1)
       positions[i * 3] = r * Math.sin(phi) * Math.cos(theta)
-      positions[i * 3 + 1] = r * Math.cos(phi) * 0.75
+      positions[i * 3 + 1] = r * Math.cos(phi) * 0.6
       positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta)
-      // Heavy tail: mostly sub-pixel dust, a few bright. Uniform sizes are the
-      // clearest tell of a generated star field.
-      sizes[i] = (0.5 + Math.pow(Math.random(), 3.4) * 2.8) * sizeScale
+      sizes[i] = 0.8 + Math.random() * 1.8
       phases[i] = Math.random()
-      warms[i] = Math.random() < 0.1 ? Math.random() : 0
     }
-    return { positions, sizes, phases, warms }
-  }, [count, radius, sizeScale])
+    return { positions, sizes, phases }
+  }, [count])
 
   const uniforms = useMemo(() => ({ uTime: { value: 0 } }), [])
 
-  useFrame(() => {
-    const s = scrollState()
-    if (matRef.current) matRef.current.uniforms.uTime.value = s.time
-    if (groupRef.current) groupRef.current.rotation.y = s.time * spin
+  useFrame((state) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = scrollState().time
+    // Anchor to the camera so the starfield is never escaped, and rotate it
+    // imperceptibly so the sky itself is alive.
+    if (groupRef.current) {
+      groupRef.current.position.z = state.camera.position.z
+      groupRef.current.rotation.y = scrollState().time * 0.004
+    }
   })
 
   return (
@@ -270,186 +233,177 @@ function DeepShell({ count, radius, sizeScale, spin }) {
           <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
           <bufferAttribute attach="attributes-aSize" count={count} array={sizes} itemSize={1} />
           <bufferAttribute attach="attributes-aPhase" count={count} array={phases} itemSize={1} />
-          <bufferAttribute attach="attributes-aWarm" count={count} array={warms} itemSize={1} />
         </bufferGeometry>
         <shaderMaterial
           ref={matRef}
           uniforms={uniforms}
-          vertexShader={deepVertex}
-          fragmentShader={deepFragment}
+          vertexShader={starVertex}
+          fragmentShader={starFragment}
           transparent
           depthWrite={false}
           blending={THREE.AdditiveBlending}
-          fog={false}
         />
       </points>
     </group>
   )
 }
 
-/* ------------------------------------------------------------------ haze -- */
-
-const hazeFragment = /* glsl */ `
-  varying vec2 vUv;
-  uniform sampler2D uNoise;
-  uniform float uTime;
-  uniform float uSpeed;
-  uniform float uSeed;
-  uniform float uOpacity;
-  uniform vec3 uColorA;
-  uniform vec3 uColorB;
-
-  void main() {
-    // Two samples scrolling at different rates in different directions. One
-    // scrolling sample reads as a moving texture; two beating against each
-    // other read as gas that is genuinely churning.
-    vec2 a = vUv * 1.3 + vec2(uTime * uSpeed, uTime * uSpeed * 0.42) + uSeed;
-    vec2 b = vUv * 2.6 - vec2(uTime * uSpeed * 0.63, -uTime * uSpeed * 0.28) + uSeed * 1.7;
-    float n = texture2D(uNoise, a).r * 0.65 + texture2D(uNoise, b).r * 0.45;
-
-    // Radial falloff so a plane never shows its own edges.
-    float r = length(vUv - 0.5) * 2.0;
-    float falloff = smoothstep(1.0, 0.05, r);
-
-    // Contrast the noise into wisps rather than a flat cloud.
-    float wisp = smoothstep(0.44, 0.95, n) * falloff;
-
-    vec3 col = mix(uColorA, uColorB, smoothstep(0.4, 0.88, n));
-    gl_FragColor = vec4(col, wisp * uOpacity);
-  }
-`
+/* ------------------------------------------------------------- strata ----- */
 
 /**
- * Volumetric atmosphere.
- *
- * Real volumetrics need a raymarch pass this performance budget cannot carry,
- * so these are camera-facing additive billboards at spread depths — the
- * standard trick, and entirely convincing once the field sits in front of them
- * and fog sits behind.
+ * The architecture: wireframe frames and slabs flanking the corridor for its
+ * full length. One InstancedMesh, so several hundred structures cost a single
+ * draw call. This is the layer that makes scrolling feel like travelling past
+ * something rather than zooming into a texture.
  */
-function Haze({ count, noise }) {
-  const groupRef = useRef()
+function CorridorStrata({ count }) {
+  const meshRef = useRef()
 
-  const clouds = useMemo(
-    () =>
-      Array.from({ length: count }, (_, i) => {
-        const theta = (i / count) * Math.PI * 2 + Math.random() * 0.7
-        const r = 18 + Math.random() * 34
-        return {
-          key: i,
-          position: [Math.cos(theta) * r, (Math.random() - 0.5) * 26, Math.sin(theta) * r],
-          scale: 30 + Math.random() * 46,
-          seed: Math.random() * 10,
-          speed: 0.004 + Math.random() * 0.009,
-          // Most haze is cold; a minority carries the crimson signal, so the
-          // accent stays an accent instead of becoming a wash.
-          warm: Math.random() < 0.3,
-          phase: Math.random() * Math.PI * 2,
-          base: 0.14 + Math.random() * 0.14,
-        }
-      }),
-    [count]
-  )
+  const instances = useMemo(() => {
+    const out = []
+    for (let i = 0; i < count; i++) {
+      const side = i % 2 === 0 ? -1 : 1
+      const z = -(Math.random() * (WORLD_DEPTH + STATION_SPACING * 2)) + STATION_SPACING
+      // Structures stay outside a clear lateral corridor. Spawning them across
+      // the full width put architecture directly behind the reading column,
+      // which both wrecked text contrast and turned the frame into noise. The
+      // corridor is the negative space that lets the composition breathe.
+      out.push({
+        position: [
+          side * (14 + Math.random() * 20),
+          (Math.random() - 0.5) * 26,
+          z,
+        ],
+        rotation: [
+          (Math.random() - 0.5) * 0.5,
+          (Math.random() - 0.5) * 1.2,
+          (Math.random() - 0.5) * 0.4,
+        ],
+        scale: [
+          0.6 + Math.random() * 5,
+          0.6 + Math.random() * 9,
+          0.4 + Math.random() * 3,
+        ],
+        drift: 0.1 + Math.random() * 0.35,
+        phase: Math.random() * Math.PI * 2,
+      })
+    }
+    return out
+  }, [count])
 
-  useFrame((state) => {
-    const g = groupRef.current
-    if (!g) return
-    const s = scrollState()
-    const density = sampleMood(s.station, 'density')
+  const dummy = useMemo(() => new THREE.Object3D(), [])
 
-    g.children.forEach((child, i) => {
-      const c = clouds[i]
-      // Billboard toward the camera so a cloud never shows as a flat card.
-      child.quaternion.copy(state.camera.quaternion)
-      const u = child.material.uniforms
-      u.uTime.value = s.time
-      const pulse = 0.72 + 0.28 * Math.sin(s.time * 0.1 + c.phase)
-      u.uOpacity.value = c.base * pulse * density * (1 + s.energy * 0.3)
-    })
+  useFrame(() => {
+    const mesh = meshRef.current
+    if (!mesh) return
+    const { time } = scrollState()
+
+    for (let i = 0; i < instances.length; i++) {
+      const inst = instances[i]
+      dummy.position.set(
+        inst.position[0],
+        // Barely-there vertical breathing keeps the architecture from reading
+        // as a static backdrop when the visitor stops scrolling.
+        inst.position[1] + Math.sin(time * inst.drift + inst.phase) * 0.6,
+        inst.position[2]
+      )
+      dummy.rotation.set(
+        inst.rotation[0],
+        inst.rotation[1] + time * inst.drift * 0.04,
+        inst.rotation[2]
+      )
+      dummy.scale.set(inst.scale[0], inst.scale[1], inst.scale[2])
+      dummy.updateMatrix()
+      mesh.setMatrixAt(i, dummy.matrix)
+    }
+    mesh.instanceMatrix.needsUpdate = true
   })
 
   return (
-    <group ref={groupRef}>
-      {clouds.map((c) => (
-        <mesh key={c.key} position={c.position} frustumCulled={false} renderOrder={-500}>
-          <planeGeometry args={[c.scale, c.scale]} />
-          <shaderMaterial
-            vertexShader={billboardVertex}
-            fragmentShader={hazeFragment}
-            uniforms={{
-              uNoise: { value: noise },
-              uTime: { value: 0 },
-              uSpeed: { value: c.speed },
-              uSeed: { value: c.seed },
-              uOpacity: { value: 0.18 },
-              uColorA: { value: new THREE.Color(c.warm ? '#4a0c1b' : '#0e1524') },
-              uColorB: { value: new THREE.Color(c.warm ? '#c22440' : '#3d5378') },
-            }}
-            transparent
-            depthWrite={false}
-            blending={THREE.AdditiveBlending}
-            fog={false}
-          />
-        </mesh>
-      ))}
-    </group>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, count]} frustumCulled={false}>
+      <boxGeometry args={[1, 1, 1]} />
+      {/* Solid, reflective slabs — not wireframe. As dark wireframe at 72%
+          opacity these structures were invisible against the black, so the
+          corridor had no landmarks and no sense of scale. Solid metal picks up
+          the environment map and the crimson rim, which is what turns them
+          into architecture you can see yourself travelling past. */}
+      <meshStandardMaterial
+        color="#3b4152"
+        metalness={0.82}
+        roughness={0.34}
+        envMapIntensity={1.5}
+      />
+    </instancedMesh>
   )
 }
 
-/* ---------------------------------------------------- distant structure --- */
+/* ---------------------------------------------------------- fragments ----- */
 
-/**
- * Three enormous, near-black shells far outside the subject.
- *
- * Deliberately abstract and deliberately barely visible: at this size and this
- * value they read as scale and as something unexplained, which is the
- * "mysterious" half of the brief. The moment they become legible objects they
- * become sci-fi props, which is exactly what this direction avoids — so they
- * are lit along one edge only and never come closer than the fog.
- */
-function DistantStructure({ enabled }) {
-  const groupRef = useRef()
+/** Mid-depth debris: solid, lit, and slowly tumbling. Catches the key light. */
+function FloatingFragments({ count }) {
+  const meshRef = useRef()
 
-  const shells = useMemo(
-    () => [
-      { pos: [-190, 60, -140], rot: [0.4, 0.8, 0.2], scale: 78, spin: 0.0035 },
-      { pos: [210, -50, 120], rot: [-0.3, 0.2, 0.6], scale: 96, spin: -0.0022 },
-      { pos: [40, 130, -240], rot: [1.1, 0.4, -0.3], scale: 64, spin: 0.0028 },
-    ],
-    []
-  )
+  const instances = useMemo(() => {
+    const out = []
+    for (let i = 0; i < count; i++) {
+      // Ring distribution with a hollow centre, for the same reason as the
+      // strata: debris tumbling across the headline is clutter, not depth.
+      // The inner radius is generous because a single fragment drifting near
+      // the camera projects large enough to upstage the hero core entirely.
+      const angle = Math.random() * Math.PI * 2
+      const radius = 11 + Math.random() * 14
+      out.push({
+        position: [
+          Math.cos(angle) * radius,
+          Math.sin(angle) * radius * 0.5,
+          -(Math.random() * (WORLD_DEPTH + STATION_SPACING)) + STATION_SPACING * 0.5,
+        ],
+        scale: 0.05 + Math.random() * 0.19,
+        spin: (Math.random() - 0.5) * 0.25,
+        bob: 0.15 + Math.random() * 0.4,
+        phase: Math.random() * Math.PI * 2,
+      })
+    }
+    return out
+  }, [count])
+
+  const dummy = useMemo(() => new THREE.Object3D(), [])
 
   useFrame(() => {
-    const g = groupRef.current
-    if (!g) return
-    const { time } = scrollState()
-    g.children.forEach((child, i) => {
-      child.rotation.y = shells[i].rot[1] + time * shells[i].spin
-      child.rotation.x = shells[i].rot[0] + Math.sin(time * 0.02 + i) * 0.05
-    })
+    const mesh = meshRef.current
+    if (!mesh) return
+    const { time, energy } = scrollState()
+
+    for (let i = 0; i < instances.length; i++) {
+      const f = instances[i]
+      dummy.position.set(
+        f.position[0] + Math.sin(time * f.bob * 0.5 + f.phase) * 0.4,
+        f.position[1] + Math.cos(time * f.bob + f.phase) * 0.5,
+        f.position[2]
+      )
+      const spin = time * f.spin
+      dummy.rotation.set(spin, spin * 1.3, spin * 0.6)
+      // Fragments swell slightly with world energy — the environment reacting.
+      const s = f.scale * (1 + energy * 0.25)
+      dummy.scale.setScalar(s)
+      dummy.updateMatrix()
+      mesh.setMatrixAt(i, dummy.matrix)
+    }
+    mesh.instanceMatrix.needsUpdate = true
   })
 
-  if (!enabled) return null
-
   return (
-    <group ref={groupRef}>
-      {shells.map((s, i) => (
-        <mesh key={i} position={s.pos} rotation={s.rot} scale={s.scale} frustumCulled={false}>
-          {/* An open shell, not a solid — the gap is what keeps the silhouette
-              ambiguous and stops it reading as a planet or a ship. */}
-          <sphereGeometry args={[1, 32, 20, 0, Math.PI * 1.35, 0.3, Math.PI * 0.62]} />
-          <meshStandardMaterial
-            color="#0b0f18"
-            roughness={0.85}
-            metalness={0.35}
-            emissive="#160a10"
-            emissiveIntensity={0.4}
-            side={THREE.DoubleSide}
-            fog={false}
-          />
-        </mesh>
-      ))}
-    </group>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, count]} frustumCulled={false}>
+      <icosahedronGeometry args={[1, 0]} />
+      {/* Rougher and less reflective than the core, so debris reads as
+          background material and never competes with the focal object. */}
+      <meshStandardMaterial
+        color="#59607a"
+        metalness={0.9}
+        roughness={0.35}
+        envMapIntensity={1.2}
+      />
+    </instancedMesh>
   )
 }
 
@@ -461,59 +415,81 @@ const shaftFragment = /* glsl */ `
   uniform float uOpacity;
 
   void main() {
-    // A soft-edged wedge: bright along the centre line, gone at the edges,
-    // fading out at both ends. Reads as haze catching light.
+    // Soft-edged vertical wedge: bright along the centre line, gone at the
+    // edges, fading out top and bottom. Reads as haze catching light.
     float edge = smoothstep(0.5, 0.0, abs(vUv.x - 0.5));
-    float vert = smoothstep(0.0, 0.42, vUv.y) * smoothstep(1.0, 0.48, vUv.y);
-    gl_FragColor = vec4(uColor, pow(edge, 1.7) * vert * uOpacity);
+    float vert = smoothstep(0.0, 0.35, vUv.y) * smoothstep(1.0, 0.55, vUv.y);
+    gl_FragColor = vec4(uColor, edge * vert * uOpacity);
   }
 `
 
-/** Raking light through the haze — the cue that there is air in the room. */
+const shaftVertex = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+/**
+ * Volumetric light. Real volumetrics need a raymarch pass we cannot afford on
+ * a 90ms-TBT budget, so these are additive billboards — the standard trick,
+ * and convincing once fog and the dust field sit in front of them.
+ */
 function LightShafts({ reducedMotion }) {
   const groupRef = useRef()
 
   const shafts = useMemo(
-    () => [
-      { pos: [-16, 12, -8], rot: [0, 0.5, 0.34], scale: [13, 52, 1], phase: 0 },
-      { pos: [19, 9, 10], rot: [0, -0.7, -0.4], scale: [10, 44, 1], phase: 2.1 },
-      { pos: [4, 15, -22], rot: [0, 0.15, 0.2], scale: [16, 60, 1], phase: 4.3 },
-    ],
+    () =>
+      STATIONS.flatMap((s, i) => [
+        {
+          key: `${s.id}-a`,
+          position: [s.position[0] - 7, 6, s.position[2] - 8],
+          rotation: [0, 0.4, 0.22],
+          scale: [7, 26, 1],
+          color: s.mood.accent,
+          phase: i * 1.7,
+        },
+        {
+          key: `${s.id}-b`,
+          position: [s.position[0] + 8, 5, s.position[2] - 20],
+          rotation: [0, -0.5, -0.3],
+          scale: [5.5, 22, 1],
+          color: s.mood.accent,
+          phase: i * 2.3 + 0.9,
+        },
+      ]),
     []
   )
 
   useFrame(() => {
-    const g = groupRef.current
-    if (!g) return
-    const s = scrollState()
-    g.children.forEach((child, i) => {
-      const u = child.material.uniforms
-      if (!u) return
-      const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(s.time * 0.16 + shafts[i].phase)
-      u.uOpacity.value =
-        (0.022 + pulse * 0.042) *
-        (0.5 + sampleMood(s.station, 'accentPower') * 0.9) *
-        (1 + s.energy * 0.6)
+    if (!groupRef.current || reducedMotion) return
+    const { time, energy } = scrollState()
+    groupRef.current.children.forEach((child, i) => {
+      const mat = child.material
+      if (!mat?.uniforms) return
+      // Independent slow pulses so the shafts never beat in unison.
+      const pulse = 0.5 + 0.5 * Math.sin(time * 0.22 + shafts[i].phase)
+      mat.uniforms.uOpacity.value = (0.035 + pulse * 0.05) * (1 + energy * 0.6)
     })
   })
 
   return (
     <group ref={groupRef}>
-      {shafts.map((s, i) => (
-        <mesh key={i} position={s.pos} rotation={s.rot} scale={s.scale} frustumCulled={false}>
+      {shafts.map((s) => (
+        <mesh key={s.key} position={s.position} rotation={s.rotation} scale={s.scale} frustumCulled={false}>
           <planeGeometry args={[1, 1]} />
           <shaderMaterial
-            vertexShader={billboardVertex}
+            vertexShader={shaftVertex}
             fragmentShader={shaftFragment}
             uniforms={{
-              uColor: { value: new THREE.Color(PALETTE.crimson) },
-              uOpacity: { value: 0.04 },
+              uColor: { value: new THREE.Color(s.color) },
+              uOpacity: { value: 0.05 },
             }}
             transparent
             depthWrite={false}
             blending={THREE.AdditiveBlending}
             side={THREE.DoubleSide}
-            fog={false}
           />
         </mesh>
       ))}
@@ -521,21 +497,16 @@ function LightShafts({ reducedMotion }) {
   )
 }
 
-/* ------------------------------------------------------------- assembly --- */
+/* ----------------------------------------------------------- assembly ----- */
 
-const Atmosphere = ({ tier, reducedMotion }) => {
-  const noise = useMemo(() => makeNoiseTexture(256), [])
-
-  return (
-    <group>
-      <Sky />
-      <DeepShell count={tier.deep} radius={340} sizeScale={1} spin={0.0016} />
-      <DeepShell count={Math.round(tier.deep * 0.5)} radius={120} sizeScale={1.15} spin={-0.0045} />
-      <DistantStructure enabled={tier.structure} />
-      <Haze count={tier.haze} noise={noise} />
-      <LightShafts reducedMotion={reducedMotion} />
-    </group>
-  )
-}
+const Atmosphere = ({ tier, reducedMotion }) => (
+  <group>
+    <StarField count={tier.stars} />
+    <CorridorStrata count={tier.strata} />
+    <FloatingFragments count={tier.fragments} />
+    <LightShafts reducedMotion={reducedMotion} />
+    <DustField count={tier.dust} quality={tier.dustScale} />
+  </group>
+)
 
 export default Atmosphere
