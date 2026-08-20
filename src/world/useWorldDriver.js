@@ -20,6 +20,21 @@ const lerp = (a, b, t) => a + (b - a) * t
  */
 export function useWorldDriver({ reducedMotion = false } = {}) {
   useEffect(() => {
+    /**
+     * Diagnostic: ?station=4.5 pins the world to one point on the timeline.
+     *
+     * Every value in this world is a function of the station float, so tuning
+     * a moment in the journey otherwise means landing a scroll position inside
+     * a narrow band and holding it - which is unreliable, and impossible to
+     * repeat exactly between two runs. Pinning makes any moment addressable.
+     */
+    const pinParam =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('station')
+        : null
+    const pinnedStation = pinParam === null ? null : parseFloat(pinParam)
+    const hasPin = pinnedStation !== null && Number.isFinite(pinnedStation)
+
     let raf = 0
     let anchors = []
     let lastProgress = 0
@@ -85,7 +100,7 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
       lastProgress = progress
       const velocity = lerp(prev.velocity, clamp(rawVelocity, -4, 4), 1 - Math.exp(-8 * dt))
 
-      const stationTarget = stationAt(focus)
+      const stationTarget = hasPin ? pinnedStation : stationAt(focus)
       const station = reducedMotion
         ? stationTarget
         : lerp(prev.station, stationTarget, 1 - Math.exp(-7 * dt))

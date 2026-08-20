@@ -2,6 +2,7 @@ import React, { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
+import { blackHoleState } from './blackHoleState'
 import { STATIONS, STATION_SPACING, WORLD_DEPTH, sampleMood } from './stations'
 
 /**
@@ -391,8 +392,13 @@ function CorridorStrata({ count }) {
       // reads as a fog of objects. Nothing is allowed inside the reading
       // corridor, which is the negative space the composition breathes in.
       const band = i % 3
+      // Pushed well out. At 20-28 units the near band swept huge pale slabs
+      // straight across the middle of the frame - including across the black
+      // hole - which wrecked every wide shot in the second half of the
+      // journey. The corridor should be something you travel BETWEEN, not
+      // something that crosses in front of the subject.
       const lateral =
-        band === 0 ? 20 + Math.random() * 8 : band === 1 ? 32 + Math.random() * 14 : 52 + Math.random() * 28
+        band === 0 ? 30 + Math.random() * 10 : band === 1 ? 46 + Math.random() * 18 : 72 + Math.random() * 34
       out.push({
         position: [side * lateral, (Math.random() - 0.5) * (band === 0 ? 22 : 42), z],
         // Only a slight roll. Ribs stay aligned to the corridor, because the
@@ -403,9 +409,9 @@ function CorridorStrata({ count }) {
           (Math.random() - 0.5) * 0.14,
         ],
         scale: [
-          0.3 + Math.random() * 1.1,
-          0.3 + Math.random() * 2.0,
-          16 + Math.random() * 52, // the long axis: down the corridor
+          0.25 + Math.random() * 0.7,
+          0.25 + Math.random() * 1.2,
+          18 + Math.random() * 58, // the long axis: down the corridor
         ],
         drift: 0.05 + Math.random() * 0.16,
         phase: Math.random() * Math.PI * 2,
@@ -420,6 +426,14 @@ function CorridorStrata({ count }) {
     const mesh = meshRef.current
     if (!mesh) return
     const { time } = scrollState()
+
+    // THE CORRIDOR GIVES WAY. As the black hole takes the frame, the
+    // architecture thins out and goes - so the approach reads as leaving the
+    // structure behind and falling into open space, rather than as a hole
+    // parked awkwardly among some girders. This is the transition.
+    const bh = blackHoleState.presence
+    mesh.material.opacity = 1 - bh * 0.92
+    mesh.material.transparent = bh > 0.01
 
     for (let i = 0; i < instances.length; i++) {
       const inst = instances[i]
@@ -456,10 +470,12 @@ function CorridorStrata({ count }) {
           reflection into a dim sheen, so the ribs read as structure catching a
           little light rather than as light sources themselves. */}
       <meshStandardMaterial
-        color="#1e2432"
-        metalness={0.62}
-        roughness={0.74}
-        envMapIntensity={0.45}
+        color="#171c27"
+        metalness={0.6}
+        roughness={0.78}
+        envMapIntensity={0.35}
+        transparent
+        opacity={1}
       />
     </instancedMesh>
   )
@@ -504,6 +520,9 @@ function FloatingFragments({ count }) {
     const mesh = meshRef.current
     if (!mesh) return
     const { time, energy } = scrollState()
+    const bh = blackHoleState.presence
+    mesh.material.opacity = 1 - bh * 0.9
+    mesh.material.transparent = bh > 0.01
 
     for (let i = 0; i < instances.length; i++) {
       const f = instances[i]
@@ -533,6 +552,8 @@ function FloatingFragments({ count }) {
         metalness={0.9}
         roughness={0.35}
         envMapIntensity={1.2}
+        transparent
+        opacity={1}
       />
     </instancedMesh>
   )

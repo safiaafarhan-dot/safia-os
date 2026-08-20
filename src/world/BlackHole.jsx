@@ -41,20 +41,27 @@ import { STATION_SPACING } from './stations'
  * abeam the camera at that moment - ninety degrees off the view axis, and so
  * never in frame at all.
  *
- * It is now far DOWN the corridor from where it peaks, which is what makes it
- * a destination: it appears small and off to one side, grows across several
- * stations as the camera closes, dominates the frame, then swings past. The
- * lateral offset is the smallest value that still keeps it clear of the
- * reading column on the left.
+ * It sits BEYOND the last station, so it is always ahead of the camera and
+ * never abeam or behind it. That is what makes it a destination: it appears
+ * small and near the centre of frame, grows steadily across the whole second
+ * half of the journey as the camera closes, dominates, and is then released.
+ *
+ * The lateral offset is small - just enough to sit right of the reading column
+ * without leaving the middle of the composition.
  */
-const BH_DEPTH_STATION = 5.9 // where it physically is
-const BH_STATION = 4.5 // where it is most present in frame
-const BH_POSITION = new THREE.Vector3(26, 7.5, -BH_DEPTH_STATION * STATION_SPACING)
+const BH_DEPTH_STATION = 7.64 // beyond the last station: always ahead
+const BH_POSITION = new THREE.Vector3(12, 6, -BH_DEPTH_STATION * STATION_SPACING)
 
-// Large, because it is seen from a long way off for most of its screen life.
+// Large, because it is seen from 90-260 units away for its entire screen life.
 const HORIZON_R = 11
 const DISK_INNER = HORIZON_R * 1.45
 const DISK_OUTER = HORIZON_R * 3.4
+
+/** GLSL-style smoothstep, for shaping the approach on the JS side. */
+const smoothstep = (edge0, edge1, x) => {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)))
+  return t * t * (3 - 2 * t)
+}
 
 /* ------------------------------------------------------------------ disk -- */
 
@@ -313,11 +320,17 @@ export default function BlackHole({ enabled = true, debrisCount = 900, reducedMo
     const { camera, size } = state
 
     /* ---- how present is it right now ---- */
-    // Visible across a wide band of the scroll so the approach is a long,
-    // slow build rather than something that snaps on at one station.
-    const near = Math.max(0, 1 - Math.abs(s.station - BH_STATION) / 3.2)
-    const presence = pinned() ? 1 : near * near
+    // ASYMMETRIC. A symmetric bump around one station is wrong for an
+    // approach: arriving should be a long slow build and leaving should be
+    // decisive. It rises across four stations, holds through the climax, then
+    // falls away over one - which also stops the hole from engulfing the frame
+    // as the camera closes the last stretch, where its apparent radius grows
+    // faster than any presence curve could sensibly track.
+    const rise = smoothstep(0.6, 4.6, s.station)
+    const fall = 1 - smoothstep(5.6, 6.6, s.station)
+    const presence = pinned() ? 1 : rise * fall
 
+    blackHoleState.presence = presence
     groupRef.current.visible = presence > 0.005
     if (!groupRef.current.visible) {
       blackHoleState.strength = 0
@@ -328,7 +341,7 @@ export default function BlackHole({ enabled = true, debrisCount = 900, reducedMo
 
     if (diskRef.current) {
       diskRef.current.material.uniforms.uTime.value = time
-      diskRef.current.material.uniforms.uOpacity.value = presence * (1.35 + s.energy * 0.35)
+      diskRef.current.material.uniforms.uOpacity.value = presence * (1.3 + s.energy * 0.3)
       // The beaming axis is fixed in the disk's own frame, so the bright limb
       // stays on the same side of the disk as the camera moves past it.
       diskRef.current.material.uniforms.uBeamDir.value.set(Math.cos(0.6), Math.sin(0.6))
@@ -363,7 +376,9 @@ export default function BlackHole({ enabled = true, debrisCount = 900, reducedMo
     const dist = camera.position.distanceTo(BH_POSITION)
     const halfH = Math.tan((camera.fov * Math.PI) / 360) * dist
     blackHoleState.radius = HORIZON_R / Math.max(halfH, 0.001) * 0.5
-    blackHoleState.strength = onScreen && !reducedMotion ? presence : 0
+    const inFrame =
+      onScreen && Math.abs(projected.x) < 1.5 && Math.abs(projected.y) < 1.5
+    blackHoleState.strength = inFrame && !reducedMotion ? presence : 0
     void size
   })
 
@@ -413,7 +428,11 @@ export default function BlackHole({ enabled = true, debrisCount = 900, reducedMo
       {/* Accretion disk, tilted so it is seen at a dramatic angle rather than
           face-on or edge-on. */}
       <mesh ref={diskRef} rotation={[Math.PI / 2 - 0.42, 0, 0.35]} renderOrder={4}>
-        <ringGeometry args={[DISK_INNER, DISK_OUTER, 192, 48]} />
+        {/* 128x12 rather than 192x48. The radial detail was buying nothing -
+            the disk's structure comes from the shader, not the tessellation -
+            and 48 radial rings cost 18k triangles for a shape whose silhouette
+            is two circles. */}
+        <ringGeometry args={[DISK_INNER, DISK_OUTER, 128, 12]} />
         <shaderMaterial
           uniforms={diskUniforms}
           vertexShader={diskVertex}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
@@ -128,6 +128,23 @@ const finalFragment = /* glsl */ `
 
     col += texture2D(tBloom, lensUv).rgb * uBloom;
 
+    // THE SHADOW.
+    //
+    // The warp above displaces UVs radially, which means that just inside the
+    // horizon it samples pixels from OUTSIDE it - dragging the bright inner
+    // edge of the accretion disk into the middle of the shadow as a white
+    // smear. That is precisely backwards: the shadow is the one region no
+    // light reaches the camera from.
+    //
+    // Re-imposing it in screen space is the cheap correct answer. Soft-edged,
+    // so the photon ring still reads as the hard rim rather than a cutout.
+    if (uBHStrength > 0.001) {
+      vec2 sd = vUv - uBH;
+      sd.x *= uAspect;
+      float shadow = smoothstep(uBHRadius * 1.04, uBHRadius * 0.86, length(sd));
+      col = mix(col, vec3(0.0), shadow * 0.97 * uBHStrength);
+    }
+
     // Vignette. Multiplied, not subtracted, so it darkens without crushing
     // colour toward grey at the edges.
     float vig = smoothstep(1.08, 0.26, r * uVignette);
@@ -144,8 +161,26 @@ const finalFragment = /* glsl */ `
   }
 `
 
-/** Quarter resolution. Bloom is blur by definition, so the loss is invisible. */
-const BLOOM_DIV = 4
+/**
+ * Bloom resolution divisor.
+ *
+ * Bloom is blur by definition, so resolution is nearly free to give up - and
+ * this chain is fill-rate bound, so every step down is a square saving. At /6
+ * the difference from /4 is not visible even side by side, and it cut the
+ * measured blocking time of the grade substantially.
+ */
+const BLOOM_DIV = 6
+
+/**
+ * Update the glow every other frame.
+ *
+ * Bloom is a low-frequency signal: it is a heavily blurred copy of the frame,
+ * so halving its update rate is imperceptible even during fast scrolling,
+ * while halving the cost of the most expensive part of the chain. The scene
+ * pass and the composite still run every frame, so nothing about the image
+ * itself is stale - only the glow lags by up to one frame.
+ */
+const BLOOM_EVERY = 2
 
 /**
  * Mounted only on the tiers that can carry it — see WorldCanvas. On weak
@@ -153,6 +188,7 @@ const BLOOM_DIV = 4
  */
 export default function PostFX({ reducedMotion = false }) {
   const { gl, scene, camera, size, viewport } = useThree()
+  const frame = useRef(0)
 
   const fx = useMemo(() => {
     // The scene target keeps a depth buffer; the bloom ping-pongs do not need
@@ -258,32 +294,33 @@ export default function PostFX({ reducedMotion = false }) {
     gl.clear()
     gl.render(scene, camera)
 
-    /* ---- 2. bright pass at quarter res ---- */
-    brightMat.uniforms.tDiffuse.value = rtScene.texture
-    quad.material = brightMat
-    gl.setRenderTarget(rtA)
-    gl.clear()
-    quad.render(gl)
-
-    /* ---- 3. separable blur, two octaves ---- */
-    const bw = rtA.width
-    const bh = rtA.height
-    quad.material = blurMat
-
-    const blur = (src, dst, dx, dy) => {
-      blurMat.uniforms.tDiffuse.value = src.texture
-      blurMat.uniforms.uDirection.value.set(dx, dy)
-      gl.setRenderTarget(dst)
+    /* ---- 2-3. bright pass + blur, on alternate frames ---- */
+    frame.current += 1
+    if (frame.current % BLOOM_EVERY === 0) {
+      brightMat.uniforms.tDiffuse.value = rtScene.texture
+      quad.material = brightMat
+      gl.setRenderTarget(rtA)
       gl.clear()
       quad.render(gl)
-    }
 
-    blur(rtA, rtB, 1 / bw, 0)
-    blur(rtB, rtA, 0, 1 / bh)
-    // A second, wider octave so the glow has a long falloff. One blur radius
-    // reads as a uniform sticker around every source.
-    blur(rtA, rtB, 2.4 / bw, 0)
-    blur(rtB, rtA, 0, 2.4 / bh)
+      const bw = rtA.width
+      const bh = rtA.height
+      quad.material = blurMat
+
+      const blur = (src, dst, dx, dy) => {
+        blurMat.uniforms.tDiffuse.value = src.texture
+        blurMat.uniforms.uDirection.value.set(dx, dy)
+        gl.setRenderTarget(dst)
+        gl.clear()
+        quad.render(gl)
+      }
+
+      // One wide octave rather than two. The taps are spread further apart to
+      // keep the long falloff that stops the glow reading as a uniform sticker
+      // around every source, for half the passes.
+      blur(rtA, rtB, 2.1 / bw, 0)
+      blur(rtB, rtA, 0, 2.1 / bh)
+    }
 
     /* ---- 4. composite to screen ---- */
     const u = finalMat.uniforms

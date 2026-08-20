@@ -28,8 +28,8 @@ const flag = (name) =>
  * resolution further if the machine still can't hold frame rate.
  */
 const TIERS = {
-  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, blackHole: true, bhDebris: 1400, dpr: [1, 1.75] },
-  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, blackHole: true, bhDebris: 700, dpr: [1, 1.4] },
+  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, blackHole: true, bhDebris: 900, dpr: [1, 1.75] },
+  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, blackHole: true, bhDebris: 450, dpr: [1, 1.4] },
   low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, grade: false, blackHole: true, bhDebris: 260, dpr: 1 },
 }
 
