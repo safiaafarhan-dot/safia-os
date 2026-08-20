@@ -16,6 +16,8 @@ import { consumeSpin, registerInteractive } from './interaction'
  * then just sits there is a loading animation, not a world.
  */
 
+const WORLD_UP = new THREE.Vector3(0, 1, 0)
+
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3)
 const clamp01 = (v) => Math.max(0, Math.min(1, v))
 
@@ -250,6 +252,10 @@ function HeroCore({ reducedMotion }) {
   const irisRef = useRef()
   const rimRef = useRef()
   const cast = useRef({ x: 0, y: 0, h: 1, d: 10, yaw: 0 })
+  const fwd = useRef(new THREE.Vector3(0, 0, -1))
+  const camRight = useRef(new THREE.Vector3(1, 0, 0))
+  const camUp = useRef(new THREE.Vector3(0, 1, 0))
+  const basePos = useRef(new THREE.Vector3())
   const visorRef = useRef()
   const ringRef = useRef()
   const mounted = useRef(0)
@@ -295,13 +301,25 @@ function HeroCore({ reducedMotion }) {
     const frameX = portrait ? c.x * 0.35 : c.x
     const frameY = portrait ? Math.max(c.y, 0.42) : c.y
 
-    // Anchored to camera.position rather than to the world, so pointer drift
-    // parallaxes the ENVIRONMENT against the guardian while the guardian holds
-    // its place in the composition.
-    const baseX = camera.position.x + frameX * halfW
-    const baseY = camera.position.y + frameY * halfH - CORE_CENTRE_Y * scale
-    const baseZ = camera.position.z - c.d
-    const base = [baseX, baseY, baseZ]
+    // SOLVED IN THE CAMERA'S OWN FRAME, not in world axes.
+    //
+    // This used to be `camera.position.z - depth`, which silently assumed the
+    // camera always looked down -Z. It did, until the rig started steering
+    // from the path tangent - at which point the guardian was being placed
+    // somewhere off to the side of the shot instead of in front of it, and the
+    // figure appeared to fly apart. Projecting along the camera's actual
+    // forward/right/up is the only placement that survives a camera that
+    // turns.
+    camera.getWorldDirection(fwd.current)
+    camRight.current.crossVectors(fwd.current, WORLD_UP).normalize()
+    camUp.current.crossVectors(camRight.current, fwd.current).normalize()
+
+    basePos.current
+      .copy(camera.position)
+      .addScaledVector(fwd.current, c.d)
+      .addScaledVector(camRight.current, frameX * halfW)
+      .addScaledVector(camUp.current, frameY * halfH - CORE_CENTRE_Y * scale)
+    const base = [basePos.current.x, basePos.current.y, basePos.current.z]
 
     // Parts are laid out in the group's LOCAL space and the group is placed at
     // `base`, so the whole core rotates about its own centre rather than
@@ -334,9 +352,14 @@ function HeroCore({ reducedMotion }) {
       // forever reads as a turntable model, not as a character standing in a
       // world.
       const sway = reducedMotion ? 0 : Math.sin(s.time * 0.42) * 0.06
+      // Facing is relative to where the camera actually is. The authored yaw
+      // is an offset from "square to the viewer" - without the camera term it
+      // would mean an arbitrary world direction, and the figure would present
+      // its back at unpredictable points along the curve.
+      const faceCamera = Math.atan2(-fwd.current.x, -fwd.current.z)
       groupRef.current.rotation.set(
         spinOffset.current.x + s.pointerSmoothY * 0.1,
-        c.yaw + sway + spinOffset.current.y + s.pointerSmoothX * 0.2,
+        faceCamera + c.yaw + sway + spinOffset.current.y + s.pointerSmoothX * 0.2,
         0
       )
       // A gentle float, so it reads as suspended rather than pasted in place.

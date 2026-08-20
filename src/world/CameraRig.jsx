@@ -13,26 +13,42 @@ import { STATIONS, sampleMood } from './stations'
  * which instantly reads as a slideshow. A spline arcs through them continuously,
  * which is what makes the travel feel like one unbroken flight.
  */
+const WORLD_UP = new THREE.Vector3(0, 1, 0)
+
+/**
+ * The station's authored aim bias, interpolated. Index 0 is lateral, 1 is
+ * vertical. Small numbers: this nudges the composition, it does not steer.
+ */
+const sampleStationBias = (stationFloat, axis) => {
+  const c = Math.max(0, Math.min(STATIONS.length - 1, stationFloat))
+  const i = Math.floor(c)
+  const j = Math.min(STATIONS.length - 1, i + 1)
+  const t = c - i
+  const key = axis === 0 ? 0 : 1
+  const a = STATIONS[i].lookAt[key] - STATIONS[i].position[key]
+  const b = STATIONS[j].lookAt[key] - STATIONS[j].position[key]
+  return a * (1 - t) + b * t
+}
+
 export default function CameraRig({ reducedMotion = false }) {
   const { camera } = useThree()
   const lookTarget = useRef(new THREE.Vector3())
   const currentLook = useRef(new THREE.Vector3(0, 0.7, -14))
   const tmp = useRef(new THREE.Vector3())
+  const ahead = useRef(new THREE.Vector3())
+  const tangent = useRef(new THREE.Vector3(0, 0, -1))
+  const nextTangent = useRef(new THREE.Vector3(0, 0, -1))
+  const right = useRef(new THREE.Vector3(1, 0, 0))
+  const up = useRef(new THREE.Vector3(0, 1, 0))
 
-  const { pathCurve, lookCurve } = useMemo(() => {
+  const { pathCurve } = useMemo(() => {
     const pathCurve = new THREE.CatmullRomCurve3(
       STATIONS.map((s) => new THREE.Vector3(...s.position)),
       false,
       'catmullrom',
       0.5
     )
-    const lookCurve = new THREE.CatmullRomCurve3(
-      STATIONS.map((s) => new THREE.Vector3(...s.lookAt)),
-      false,
-      'catmullrom',
-      0.5
-    )
-    return { pathCurve, lookCurve }
+    return { pathCurve }
   }, [])
 
   useFrame((state, delta) => {
@@ -42,26 +58,62 @@ export default function CameraRig({ reducedMotion = false }) {
 
     pathCurve.getPoint(t, tmp.current)
 
+    // HEADING COMES FROM THE CURVE, NOT FROM A SECOND HAND-AUTHORED CURVE.
+    //
+    // The look target used to be its own spline, authored as "14 units further
+    // down -Z" at every station. That meant the camera faced the same
+    // direction no matter where the path went, so it never turned - it slid.
+    // Taking the heading from the path's own tangent is what makes the rig
+    // bank into its travel and makes the view keep opening onto something new.
+    const lead = Math.min(1, t + 0.045)
+    pathCurve.getPoint(lead, ahead.current)
+    tangent.current.copy(ahead.current).sub(tmp.current)
+    if (tangent.current.lengthSq() < 1e-6) tangent.current.set(0, 0, -1)
+    tangent.current.normalize()
+
+    // Camera-local axes, so the aim bias is a COMPOSITION offset rather than a
+    // world-space nudge that would swing the subject across frame as the path
+    // turns.
+    right.current.crossVectors(tangent.current, WORLD_UP).normalize()
+    up.current.crossVectors(right.current, tangent.current).normalize()
+
     // Pointer pushes the camera off the rail. This is the difference between
     // "the page has a 3D background" and "I am holding the camera": the view
-    // parallaxes against the environment even when the page is not scrolling.
-    const drift = reducedMotion ? 0 : 1
-    const px = s.pointerSmoothX * 0.85 * drift
-    const py = s.pointerSmoothY * 0.5 * drift
+    // parallaxes against the environment even when nothing is scrolling.
+    if (!reducedMotion) {
+      tmp.current.addScaledVector(right.current, s.pointerSmoothX * 0.9)
+      tmp.current.addScaledVector(up.current, s.pointerSmoothY * 0.55)
+    }
+    camera.position.copy(tmp.current)
 
-    camera.position.set(tmp.current.x + px, tmp.current.y + py, tmp.current.z)
+    // Aim: down the tangent, plus the station's authored bias in camera space.
+    const biasX = sampleStationBias(s.station, 0)
+    const biasY = sampleStationBias(s.station, 1)
+    lookTarget.current
+      .copy(tmp.current)
+      .addScaledVector(tangent.current, 18)
+      .addScaledVector(right.current, biasX * 6)
+      .addScaledVector(up.current, biasY * 6)
 
-    lookCurve.getPoint(t, lookTarget.current)
-    // The look target lags the camera slightly, so fast scrolling swings the
-    // view like a real rig catching up rather than snapping rigidly forward.
-    const ease = reducedMotion ? 1 : 1 - Math.exp(-9 * delta)
+    // The look target lags, so fast scrolling swings the view like a real rig
+    // catching up rather than snapping rigidly to the new heading.
+    const ease = reducedMotion ? 1 : 1 - Math.exp(-6 * delta)
     currentLook.current.lerp(lookTarget.current, ease)
     camera.lookAt(currentLook.current)
 
     if (!reducedMotion) {
-      // Bank into the travel. Tiny — a couple of degrees at full speed — but it
-      // is most of what makes fast scrolling feel like momentum.
-      const targetRoll = THREE.MathUtils.clamp(-s.velocity * 0.05, -0.06, 0.06)
+      // BANK INTO THE TURN. Sample the heading a little further along and roll
+      // toward whichever way it is swinging, on top of the velocity bank. A
+      // camera that changes direction without banking reads as a sliding
+      // window; one that banks reads as a body moving through space.
+      pathCurve.getPoint(Math.min(1, t + 0.09), ahead.current)
+      nextTangent.current.copy(ahead.current).sub(tmp.current).normalize()
+      const turn = nextTangent.current.dot(right.current)
+      const targetRoll = THREE.MathUtils.clamp(
+        -turn * 1.5 - s.velocity * 0.04,
+        -0.16,
+        0.16
+      )
       camera.rotation.z += (targetRoll - camera.rotation.z) * (1 - Math.exp(-6 * delta))
 
       // Speed widens the lens. Reads as acceleration without moving faster.

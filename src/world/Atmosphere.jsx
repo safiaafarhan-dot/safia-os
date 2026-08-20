@@ -363,55 +363,90 @@ function StarField({ count }) {
 /* ------------------------------------------------------------- strata ----- */
 
 /**
- * The architecture flanking the corridor.
+ * STRUCTURE DRIFTS.
  *
- * These used to be randomly rotated, randomly scaled boxes spread on both
- * sides. Two things went wrong with that. Random rotation gives a box no
- * direction, so it reads as debris rather than as structure. And perspective
- * convergence meant the DISTANT ones landed in the middle of the frame, so the
- * composite was rubble tumbling across the headline — the single biggest
- * reason the environment looked template-y.
+ * These used to be laid out in three lateral bands running parallel to the
+ * travel axis - which is to say, walls. Two walls and a path between them is
+ * a corridor no matter what you put on them, and that single layout decision
+ * was most of why the world read as a tunnel with scenery rather than as open
+ * space.
  *
- * They are now DIRECTIONAL: long ribs running parallel to the travel axis,
- * held in three discrete lateral bands well outside the reading corridor. A
- * rib that runs along -Z draws a converging line toward the vanishing point,
- * which is what makes travel legible. Speed lines instead of confetti.
+ * They are now CLUSTERS, scattered in irregular volumes near the flight path
+ * rather than along either side of it. The camera passes through some, well
+ * clear of others, and sometimes has nothing nearby at all. That irregularity
+ * is the point: a constant density either side of you is a corridor, while
+ * varying density with real gaps reads as a place that happens to have things
+ * in it.
  *
- * One InstancedMesh, so several hundred ribs still cost a single draw call.
+ * Orientation is varied too. Parallel alignment was doing useful work when
+ * these were speed lines in a tunnel, but in open space everything pointing
+ * the same way reads as manufactured.
+ *
+ * Still one InstancedMesh, so several hundred structures cost a single draw
+ * call.
  */
 function CorridorStrata({ count }) {
   const meshRef = useRef()
 
   const instances = useMemo(() => {
     const out = []
+    // Cluster centres, spread along the flight path and pushed off it in a
+    // random direction. Anchoring to the STATIONS means the drifts follow the
+    // curve the camera actually flies, so it meets them rather than watching
+    // them slide past on rails.
+    const CLUSTERS = Math.max(5, Math.round(count / 12))
+    const centres = []
+    for (let c = 0; c < CLUSTERS; c++) {
+      const t = (c + 0.5) / CLUSTERS
+      const si = Math.min(STATIONS.length - 1, Math.floor(t * (STATIONS.length - 1)))
+      const sj = Math.min(STATIONS.length - 1, si + 1)
+      const f = t * (STATIONS.length - 1) - si
+      const a = STATIONS[si].position
+      const b = STATIONS[sj].position
+
+      // Direction away from the path, biased toward the horizontal so drifts
+      // sit around the flight rather than directly above and below it.
+      const theta = Math.random() * Math.PI * 2
+      const phi = Math.acos(2 * Math.random() - 1)
+      // Distance from the path. The first pass started at 18 units with a
+      // heavy inward bias, which put the camera INSIDE the drifts - the frame
+      // filled with grey slabs and read as a scrapyard. Clusters now start
+      // well clear and bias outward, so a drift is something seen across a gap
+      // rather than something flown into.
+      const dist = 52 + Math.pow(Math.random(), 0.8) * 120
+
+      centres.push([
+        a[0] + (b[0] - a[0]) * f + Math.sin(phi) * Math.cos(theta) * dist,
+        a[1] + (b[1] - a[1]) * f + Math.cos(phi) * dist * 0.55,
+        a[2] + (b[2] - a[2]) * f + Math.sin(phi) * Math.sin(theta) * dist * 0.7,
+      ])
+    }
+
     for (let i = 0; i < count; i++) {
-      const side = i % 2 === 0 ? -1 : 1
-      const z = -(Math.random() * (WORLD_DEPTH + STATION_SPACING * 2)) + STATION_SPACING
-      // Three discrete lateral bands - near wall, mid structure, far skyline.
-      // Discrete bands read as built architecture; a uniform random spread
-      // reads as a fog of objects. Nothing is allowed inside the reading
-      // corridor, which is the negative space the composition breathes in.
-      const band = i % 3
-      // Pushed well out. At 20-28 units the near band swept huge pale slabs
-      // straight across the middle of the frame - including across the black
-      // hole - which wrecked every wide shot in the second half of the
-      // journey. The corridor should be something you travel BETWEEN, not
-      // something that crosses in front of the subject.
-      const lateral =
-        band === 0 ? 30 + Math.random() * 10 : band === 1 ? 46 + Math.random() * 18 : 72 + Math.random() * 34
+      const c = centres[i % CLUSTERS]
+      // Spread within the cluster, elongated so a drift reads as a formation
+      // rather than as a ball of debris.
+      const spread = 8 + Math.random() * 18
       out.push({
-        position: [side * lateral, (Math.random() - 0.5) * (band === 0 ? 22 : 42), z],
-        // Only a slight roll. Ribs stay aligned to the corridor, because the
-        // alignment IS the depth cue.
-        rotation: [
-          (Math.random() - 0.5) * 0.07,
-          (Math.random() - 0.5) * 0.12,
-          (Math.random() - 0.5) * 0.14,
+        position: [
+          c[0] + (Math.random() - 0.5) * spread * 1.6,
+          c[1] + (Math.random() - 0.5) * spread * 0.8,
+          c[2] + (Math.random() - 0.5) * spread * 2.6,
         ],
+        // Varied orientation. Everything parallel reads as manufactured.
+        rotation: [
+          Math.random() * Math.PI,
+          Math.random() * Math.PI,
+          (Math.random() - 0.5) * 0.9,
+        ],
+        // Chunkier proportions. Long thin sticks were right when these were
+        // speed lines along a tunnel wall, but scattered in open space a
+        // forest of splinters reads as twigs, not architecture. A slab needs
+        // enough width and height to catch light on a face.
         scale: [
-          0.25 + Math.random() * 0.7,
-          0.25 + Math.random() * 1.2,
-          18 + Math.random() * 58, // the long axis: down the corridor
+          1.2 + Math.random() * 4.5,
+          1.0 + Math.random() * 5.5,
+          4 + Math.random() * 16,
         ],
         drift: 0.05 + Math.random() * 0.16,
         phase: Math.random() * Math.PI * 2,
@@ -444,7 +479,11 @@ function CorridorStrata({ count }) {
         inst.position[1] + Math.sin(time * inst.drift + inst.phase) * 0.6,
         inst.position[2]
       )
-      dummy.rotation.set(inst.rotation[0], inst.rotation[1], inst.rotation[2])
+      dummy.rotation.set(
+        inst.rotation[0],
+        inst.rotation[1] + time * inst.drift * 0.02,
+        inst.rotation[2]
+      )
       dummy.scale.set(inst.scale[0], inst.scale[1], inst.scale[2])
       dummy.updateMatrix()
       mesh.setMatrixAt(i, dummy.matrix)
@@ -470,10 +509,10 @@ function CorridorStrata({ count }) {
           reflection into a dim sheen, so the ribs read as structure catching a
           little light rather than as light sources themselves. */}
       <meshStandardMaterial
-        color="#171c27"
-        metalness={0.6}
-        roughness={0.78}
-        envMapIntensity={0.35}
+        color="#2a3142"
+        metalness={0.72}
+        roughness={0.55}
+        envMapIntensity={0.9}
         transparent
         opacity={1}
       />

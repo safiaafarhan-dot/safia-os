@@ -1,6 +1,18 @@
 /**
  * The camera path through SAFIA.OS.
  *
+ * THE PATH IS A REAL 3D CURVE, and that matters more than anything else in
+ * this file. It used to deviate by +/-2.8 units across 308 units of depth -
+ * under one percent, which is a straight line - and a straight path with
+ * anything either side of it is a tunnel by definition. No amount of set
+ * dressing fixes that. Stations now swing +/-13 laterally and +/-8 vertically,
+ * so the rig genuinely arcs through the space and the view keeps opening onto
+ * something new.
+ *
+ * lookX/lookY are no longer a separate parallel curve - see CameraRig. They
+ * are now a small aim BIAS applied in the camera's own frame, on top of a
+ * heading taken from the curve's tangent. That is what lets the camera turn.
+ *
  * The whole site is ONE continuous 3D space. Scrolling does not fade between
  * sections — it flies the camera down a corridor of the laboratory, and each
  * section's HTML is simply what you read while parked at that depth.
@@ -46,35 +58,35 @@ const station = (i, id, { x = 0, y = 0, lookX = 0, lookY = 0, mood }) => ({
  */
 export const STATIONS = [
   station(0, 'hero', {
-    x: 0, y: 0.9, lookX: 0.4, lookY: 0.7,
+    x: 0, y: 1.0, lookX: 0.0, lookY: 0.6,
     mood: { fogNear: 14, fogFar: 90, accent: '#ff2d4d', ambient: 0.62, density: 1.0, light: 1.35, accentPower: 0.95, exposure: 1.16, bloom: 0.74, vignette: 0.92 },
   }),
   station(1, 'about', {
-    x: -2.4, y: 1.4, lookX: -0.8, lookY: 1.0,
+    x: -7, y: 4.5, lookX: -0.5, lookY: 0.9,
     mood: { fogNear: 12, fogFar: 74, accent: '#b3122e', ambient: 0.56, density: 1.25, light: 1.1, accentPower: 0.5, exposure: 1.04, bloom: 0.52, vignette: 1.12 },
   }),
   station(2, 'skills', {
-    x: 2.2, y: 0.4, lookX: 0.9, lookY: 0.5,
+    x: 5, y: -4.0, lookX: 0.4, lookY: -0.4,
     mood: { fogNear: 16, fogFar: 110, accent: '#ff2d4d', ambient: 0.68, density: 0.8, light: 1.5, accentPower: 0.74, exposure: 1.14, bloom: 0.66, vignette: 0.96 },
   }),
   station(3, 'experience', {
-    x: -1.6, y: -0.9, lookX: -0.5, lookY: -0.3,
+    x: 13, y: 2.0, lookX: 0.7, lookY: 0.3,
     mood: { fogNear: 13, fogFar: 80, accent: '#b3122e', ambient: 0.54, density: 1.15, light: 1.15, accentPower: 0.44, exposure: 0.99, bloom: 0.46, vignette: 1.18 },
   }),
   station(4, 'projects', {
-    x: 1.2, y: 1.8, lookX: 0.3, lookY: 1.2,
+    x: 2, y: 8.0, lookX: 0.2, lookY: 0.8,
     mood: { fogNear: 18, fogFar: 125, accent: '#ff2d4d', ambient: 0.72, density: 0.7, light: 1.65, accentPower: 0.88, exposure: 1.2, bloom: 0.8, vignette: 0.9 },
   }),
   station(5, 'ailab', {
-    x: -2.8, y: 0.2, lookX: -1.1, lookY: 0.4,
+    x: -11, y: 1.5, lookX: -0.6, lookY: 0.2,
     mood: { fogNear: 11, fogFar: 68, accent: '#ff5a3c', ambient: 0.5, density: 1.4, light: 1.0, accentPower: 0.66, exposure: 1.02, bloom: 0.6, vignette: 1.24 },
   }),
   station(6, 'achievements', {
-    x: 1.9, y: 1.1, lookX: 0.7, lookY: 0.9,
+    x: -4, y: -6.0, lookX: -0.3, lookY: -0.5,
     mood: { fogNear: 15, fogFar: 100, accent: '#ff5a3c', ambient: 0.7, density: 0.85, light: 1.45, accentPower: 0.6, exposure: 1.15, bloom: 0.7, vignette: 0.96 },
   }),
   station(7, 'contact', {
-    x: 0, y: 0.6, lookX: 0, lookY: 0.6,
+    x: 6, y: 0.5, lookX: 0.3, lookY: 0.1,
     mood: { fogNear: 17, fogFar: 130, accent: '#ff2d4d', ambient: 0.64, density: 0.6, light: 1.4, accentPower: 1.0, exposure: 1.2, bloom: 0.9, vignette: 0.88 },
   }),
 ]
