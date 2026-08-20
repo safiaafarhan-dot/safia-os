@@ -163,26 +163,67 @@ const CORE_HALF_WIDTH = 1.3 // the widest diagnostic ring
  */
 const CORE_CENTRE_Y = -0.1
 
-/** Depth in front of the camera at which the figure is parked. */
-const CORE_DEPTH = 10.5
+/**
+ * WHERE THE GUARDIAN STANDS, STATION BY STATION.
+ *
+ * This table is the fix for the single worst problem in the build: the figure
+ * used to be gated to `proximityTo(0, station, 1.4)` and hard-hidden past
+ * station 1.4, so it simply did not exist for four fifths of the journey -
+ * including the entire black-hole sequence. It was not being overpowered by
+ * the composition; it was absent from it.
+ *
+ * It is now the protagonist for the whole scroll, and the framing is authored
+ * per station so it plays a part in each shot rather than being parked in one
+ * spot forever.
+ *
+ * The important entries are 4 and 5. Through the black hole the guardian moves
+ * into the FOREGROUND - depth 7 instead of 18 - so it is small in frame but
+ * very close to the camera. That is what makes the hole read as enormous:
+ * scale contrast against a protagonist you already know the size of. A giant
+ * black circle with nothing to measure it against is just a big circle.
+ *
+ * Coordinates are NORMALISED DEVICE COORDINATES, because the composition is
+ * what matters and NDC is the only frame the composition is defined in. World
+ * coordinates that look right at 16:9 put the figure off-screen in portrait.
+ *
+ * x/y  position in frame, -1..1
+ * h    height as a fraction of the viewport
+ * d    distance in front of the camera - the depth/scale dial
+ * yaw  which way it is facing, radians
+ */
+const CAST = [
+  // 0 HERO - large, right of the reading column, turned toward the text.
+  { x: 0.52, y: 0.10, h: 0.72, d: 10.5, yaw: -0.35 },
+  // 1 IDENTITY - has walked ahead and turned away while you read its file.
+  { x: 0.64, y: 0.24, h: 0.44, d: 14.0, yaw: -1.30 },
+  // 2 CAPABILITY - opposite the constellation, turned back toward it.
+  { x: -0.60, y: 0.26, h: 0.40, d: 15.0, yaw: 0.70 },
+  // 3 RECORD - small and low; the corridor opens out and it gives it scale.
+  { x: 0.66, y: -0.32, h: 0.30, d: 18.0, yaw: -0.80 },
+  // 4 APPROACH - into the foreground, low and right, against the disk.
+  { x: 0.60, y: -0.34, h: 0.50, d: 8.0, yaw: 0.45 },
+  // 5 CLIMAX - closer still, a rim-lit silhouette on the bright limb.
+  { x: 0.56, y: -0.26, h: 0.62, d: 6.4, yaw: 0.30 },
+  // 6 HONOURS - pulling back out, mid-right, as the phenomenon releases.
+  { x: 0.60, y: 0.28, h: 0.34, d: 16.0, yaw: -0.60 },
+  // 7 UPLINK - centred and facing you for the first time since the hero.
+  { x: 0.00, y: 0.30, h: 0.42, d: 12.0, yaw: 0.00 },
+]
+
+const CAST_KEYS = ['x', 'y', 'h', 'd', 'yaw']
 
 /**
- * Where the figure sits, expressed in normalised device coordinates rather
- * than world units.
- *
- * The composition is what matters, and NDC is the only frame the composition
- * is actually defined in — world coordinates that look right at 16:9 put the
- * figure completely off-screen in portrait, which is exactly what happened
- * when this was a fixed world position. Solving from NDC each frame means the
- * hero frames itself correctly at any viewport, including after a rotate.
+ * Blend the framing between stations, into `out` rather than a fresh object -
+ * this runs every frame, and per-frame allocation in a render loop is the kind
+ * of garbage that surfaces later as periodic hitching.
  */
-const CORE_FRAMING = {
-  // Wide: right of the text column, slightly above centre.
-  wide: { x: 0.52, y: 0.1, heightFrac: 0.72 },
-  // Portrait: centred in the clear band between the nav bar and the headline.
-  // That band is only ~185px tall on a 844px screen, so the figure has to be
-  // both smaller and higher than the wide-viewport framing.
-  narrow: { x: 0.04, y: 0.63, heightFrac: 0.3 },
+function sampleCast(stationFloat, out) {
+  const c = Math.max(0, Math.min(CAST.length - 1, stationFloat))
+  const i = Math.floor(c)
+  const j = Math.min(CAST.length - 1, i + 1)
+  const t = c - i
+  for (const k of CAST_KEYS) out[k] = CAST[i][k] * (1 - t) + CAST[j][k] * t
+  return out
 }
 
 /** The three diagnostic rings that orbit the figure. */
@@ -207,6 +248,8 @@ function HeroCore({ reducedMotion }) {
   const coreLight = useRef()
   const glowRef = useRef()
   const irisRef = useRef()
+  const rimRef = useRef()
+  const cast = useRef({ x: 0, y: 0, h: 1, d: 10, yaw: 0 })
   const visorRef = useRef()
   const ringRef = useRef()
   const mounted = useRef(0)
@@ -227,28 +270,37 @@ function HeroCore({ reducedMotion }) {
     const s = scrollState()
     const { camera, size } = state
 
-    // On first load the core builds itself regardless of scroll — this is the
-    // boot. After that it is governed by how close the camera is.
-    mounted.current = Math.min(1, mounted.current + delta / (reducedMotion ? 0.6 : 2.4))
-    const p = Math.max(proximityTo(0, s.station, 1.4), mounted.current * (s.station < 1 ? 1 : 0))
+    // The guardian assembles ONCE, on load. It never disassembles again,
+    // because a protagonist that falls apart every time you scroll past is a
+    // loading animation, not a character.
+    mounted.current = Math.min(1, mounted.current + delta / (reducedMotion ? 0.6 : 2.6))
+    const p = mounted.current
 
     /* ---- solve framing for the current viewport ---- */
+    const c = sampleCast(s.station, cast.current)
     const aspect = size.width / Math.max(1, size.height)
-    const frame = aspect < 0.95 ? CORE_FRAMING.narrow : CORE_FRAMING.wide
+    const portrait = aspect < 0.95
 
-    const halfH = Math.tan((camera.fov * Math.PI) / 360) * CORE_DEPTH
+    const halfH = Math.tan((camera.fov * Math.PI) / 360) * c.d
     const halfW = halfH * aspect
 
-    // Fit to the requested share of viewport height, then clamp so the ring
-    // can never overhang the sides on a narrow screen.
-    let scale = (frame.heightFrac * halfH) / CORE_HALF_HEIGHT
+    // Portrait gets a smaller, higher figure: the clear band between the nav
+    // bar and the headline is only ~185px tall on an 844px screen, and the
+    // wide framing puts the figure straight through the text.
+    const heightFrac = portrait ? c.h * 0.5 : c.h
+    let scale = (heightFrac * halfH) / CORE_HALF_HEIGHT
+    // Never let the diagnostic rings overhang the sides on a narrow screen.
     scale = Math.min(scale, (halfW * 0.92) / CORE_HALF_WIDTH)
 
-    // The camera drifts with the pointer; anchoring to camera.position keeps
-    // the core locked to its spot in frame instead of sliding with the drift.
-    const baseX = camera.position.x + frame.x * halfW
-    const baseY = camera.position.y + frame.y * halfH - CORE_CENTRE_Y * scale
-    const baseZ = camera.position.z - CORE_DEPTH
+    const frameX = portrait ? c.x * 0.35 : c.x
+    const frameY = portrait ? Math.max(c.y, 0.42) : c.y
+
+    // Anchored to camera.position rather than to the world, so pointer drift
+    // parallaxes the ENVIRONMENT against the guardian while the guardian holds
+    // its place in the composition.
+    const baseX = camera.position.x + frameX * halfW
+    const baseY = camera.position.y + frameY * halfH - CORE_CENTRE_Y * scale
+    const baseZ = camera.position.z - c.d
     const base = [baseX, baseY, baseZ]
 
     // Parts are laid out in the group's LOCAL space and the group is placed at
@@ -276,14 +328,38 @@ function HeroCore({ reducedMotion }) {
         spinOffset.current.x += spin.x
         spinOffset.current.y += spin.y
       }
-      // Idle rotation continues under any drag the visitor has applied.
-      const idle = reducedMotion ? 0 : s.time * 0.14
+      // The authored facing for this station, plus a slow breathing sway so
+      // the figure is never mechanically still, plus whatever the visitor has
+      // dragged. It no longer spins continuously: a protagonist that rotates
+      // forever reads as a turntable model, not as a character standing in a
+      // world.
+      const sway = reducedMotion ? 0 : Math.sin(s.time * 0.42) * 0.06
       groupRef.current.rotation.set(
-        spinOffset.current.x + s.pointerSmoothY * 0.12,
-        idle + spinOffset.current.y + s.pointerSmoothX * 0.25,
+        spinOffset.current.x + s.pointerSmoothY * 0.1,
+        c.yaw + sway + spinOffset.current.y + s.pointerSmoothX * 0.2,
         0
       )
+      // A gentle float, so it reads as suspended rather than pasted in place.
+      if (!reducedMotion) groupRef.current.position.y += Math.sin(s.time * 0.6) * 0.05 * scale
       groupRef.current.visible = p > 0.01
+    }
+
+    // SEPARATION. A rim light placed behind the guardian along the camera's
+    // own sight line, so the silhouette always has a lit edge no matter what
+    // is behind it. This is what keeps the figure readable against the
+    // accretion disk instead of dissolving into it.
+    if (rimRef.current) {
+      const dx = base[0] - camera.position.x
+      const dy = base[1] - camera.position.y
+      const dz = base[2] - camera.position.z
+      const len = Math.hypot(dx, dy, dz) || 1
+      rimRef.current.position.set(
+        base[0] + (dx / len) * 2.6 * scale,
+        base[1] + (dy / len) * 2.6 * scale + 1.4 * scale,
+        base[2] + (dz / len) * 2.6 * scale
+      )
+      rimRef.current.intensity = (7 + s.energy * 5) * scale * scale
+      rimRef.current.distance = 14 * scale
     }
 
     // Power only arrives once the plating is essentially seated.
@@ -295,7 +371,7 @@ function HeroCore({ reducedMotion }) {
       // Kept deliberately low. The bloom pass is what gives the core its
       // reach; driving the emissive hard as well blew it into a red ball that
       // swallowed the chest and detached from the silhouette.
-      glowRef.current.material.emissiveIntensity = lit * (0.85 + s.energy * 0.9) * beat
+      glowRef.current.material.emissiveIntensity = lit * (0.5 + s.energy * 0.5) * beat
       glowRef.current.scale.setScalar(lit * (1 + Math.sin(s.time * 2) * 0.08 * lit))
     }
     if (visorRef.current) {
@@ -316,7 +392,13 @@ function HeroCore({ reducedMotion }) {
   })
 
   return (
-    <group ref={groupRef}>
+    <>
+      {/* Sits outside the figure's own group so it is positioned in world
+          space relative to the camera, not carried around by the figure's
+          rotation. */}
+      <pointLight ref={rimRef} color="#ffb46a" intensity={0} distance={14} decay={2} />
+
+      <group ref={groupRef}>
       {CORE_PARTS.map((part, i) => (
         <mesh key={i} ref={(el) => (partRefs.current[i] = el)}>
           {partGeometry(part)}
@@ -324,13 +406,20 @@ function HeroCore({ reducedMotion }) {
               emissive. The accent belongs on the EDGES, which is how the
               silhouette gets its crimson energy lines while the plating still
               reads as metal. */}
+          {/* RED AND GOLD, as metal rather than as paint.
+              Accent plates are a deep crimson lacquer over metal - high
+              metalness with a dark red base reads as anodised armour, where a
+              bright red diffuse would read as plastic. Structure underneath is
+              graphite, and the edge line work is warm gold. Keeping the gold
+              on the EDGES rather than as broad panels is what stops the figure
+              tipping into costume territory. */}
           <meshStandardMaterial
-            color={part.accent ? '#8b95ad' : '#6a7387'}
-            metalness={0.94}
-            roughness={part.accent ? 0.22 : 0.34}
+            color={part.accent ? '#7d2230' : '#4d5567'}
+            metalness={0.95}
+            roughness={part.accent ? 0.26 : 0.38}
             envMapIntensity={2.4}
           />
-          <Edges threshold={18} color={part.accent ? '#ff2d4d' : '#8fa3c2'} />
+          <Edges threshold={18} color={part.accent ? '#e8b45c' : '#8fa3c2'} />
         </mesh>
       ))}
 
@@ -350,7 +439,7 @@ function HeroCore({ reducedMotion }) {
           blew out into a floating ball that detached from the silhouette. The
           bloom pass is what gives it reach now, not raw intensity. */}
       <mesh ref={glowRef} position={[0, 0.72, 0.36]}>
-        <sphereGeometry args={[0.075, 20, 20]} />
+        <sphereGeometry args={[0.062, 20, 20]} />
         <meshStandardMaterial color="#ff6a80" emissive="#ff2d4d" emissiveIntensity={0} />
       </mesh>
       {/* The housing that holds it, so the core sits IN the chest rather than
@@ -367,7 +456,7 @@ function HeroCore({ reducedMotion }) {
           piece of hardware. */}
       <mesh ref={irisRef} position={[0, 0.72, 0.345]}>
         <torusGeometry args={[0.115, 0.012, 6, 32]} />
-        <meshStandardMaterial color="#9aa6bd" metalness={0.95} roughness={0.22} envMapIntensity={2.2} />
+        <meshStandardMaterial color="#d8ab5e" metalness={0.96} roughness={0.2} envMapIntensity={2.4} />
       </mesh>
 
       <pointLight ref={coreLight} position={[0, 0.76, 0.5]} color="#ff2d4d" intensity={0} distance={11} decay={2} />
@@ -382,7 +471,8 @@ function HeroCore({ reducedMotion }) {
           </mesh>
         ))}
       </group>
-    </group>
+      </group>
+    </>
   )
 }
 

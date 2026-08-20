@@ -114,6 +114,14 @@ const finalFragment = /* glsl */ `
       float dist = max(length(d), 0.0008);
       float pull = uBHStrength * (uBHRadius * uBHRadius) / (dist * dist);
       pull = min(pull, 0.42);
+
+      // Fade the displacement out INSIDE the horizon. This is what stops the
+      // warp sampling from outside the shadow and dragging the bright inner
+      // edge of the disk into the middle of it as a white smear. Killing the
+      // warp there means those pixels sample themselves - and what is actually
+      // there is the horizon sphere, which is real geometry with real depth.
+      pull *= smoothstep(uBHRadius * 0.72, uBHRadius * 1.18, dist);
+
       vec2 dir = normalize(vec2(d.x / uAspect, d.y));
       lensUv = vUv - dir * pull * dist;
     }
@@ -128,22 +136,14 @@ const finalFragment = /* glsl */ `
 
     col += texture2D(tBloom, lensUv).rgb * uBloom;
 
-    // THE SHADOW.
+    // NOTE: the shadow is NOT re-imposed here any more.
     //
-    // The warp above displaces UVs radially, which means that just inside the
-    // horizon it samples pixels from OUTSIDE it - dragging the bright inner
-    // edge of the accretion disk into the middle of the shadow as a white
-    // smear. That is precisely backwards: the shadow is the one region no
-    // light reaches the camera from.
-    //
-    // Re-imposing it in screen space is the cheap correct answer. Soft-edged,
-    // so the photon ring still reads as the hard rim rather than a cutout.
-    if (uBHStrength > 0.001) {
-      vec2 sd = vUv - uBH;
-      sd.x *= uAspect;
-      float shadow = smoothstep(uBHRadius * 1.04, uBHRadius * 0.86, length(sd));
-      col = mix(col, vec3(0.0), shadow * 0.97 * uBHStrength);
-    }
+    // An earlier pass painted a black disc in screen space to kill the smear.
+    // It worked, but a screen-space disc has no depth information, so it also
+    // erased anything drawn in FRONT of the hole - which, now that the
+    // guardian travels into the foreground during the approach, means the
+    // protagonist. Attenuating the warp inside the horizon fixes the smear at
+    // its cause and lets the horizon sphere occlude properly.
 
     // Vignette. Multiplied, not subtracted, so it darkens without crushing
     // colour toward grey at the edges.
