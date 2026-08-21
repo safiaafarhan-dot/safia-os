@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'rea
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import AdaptiveDpr from './AdaptiveDpr'
+import Artifact from './Artifact'
 import Atmosphere from './Atmosphere'
 import Crystals from './Crystals'
 import CursorField from './CursorField'
@@ -158,6 +159,13 @@ const WorldCanvas = ({ reducedMotion = false }) => {
           planes. Nothing here resolves into a nameable object, which is what
           keeps the first impression off "space portfolio". */}
       <DimensionalForms enabled={effectiveTier.forms} />
+
+      {/* THE ONE CINEMATIC EVENT. A single abstract instrument that starts as
+          a point of light far down the corridor, closes on the lens as the
+          visitor scrolls, fills and exceeds the frame, then breaks and blows
+          past. Deliberately singular — one object the eye can track from four
+          pixels to larger than the screen is a scene; a swarm is a screensaver. */}
+      <Artifact reducedMotion={reducedMotion} />
 
       {/* THE AI/ML IDENTITY, expressed as behaviour rather than iconography:
           data points that cluster, connections that form from proximity, one

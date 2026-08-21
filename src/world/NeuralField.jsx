@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { ignitionAt, scrollState } from '../state/scrollStore'
 import { chargedInfluenceAt, cursorField } from './cursorFieldState'
+import { artifactState } from './artifactState'
 import { safeZone } from './safeZone'
 
 /**
@@ -559,7 +560,11 @@ export default function NeuralField({ count = 90, reducedMotion = false }) {
     // from a single point at t=0, so gating their brightness to the end of the
     // ramp means the sequence reads as: space lights, structures resolve, and
     // only then does the thing in the middle start computing.
-    const fade = present * (0.85 + energy * 0.15) * ignitionAt(0.46, 1)
+    // Yields to the artifact as it closes. The network is the hero's argument
+    // about who built this, but it is not the subject of THIS shot, and two
+    // subjects in one frame is no subject at all.
+    const fade =
+      present * (0.85 + energy * 0.15) * ignitionAt(0.46, 1) * (1 - artifactState.dominance * 0.92)
     for (const mat of [nodeMatRef.current, linkMatRef.current]) {
       if (!mat) continue
       mat.uniforms.uFade.value = fade

@@ -21,6 +21,8 @@ import Footer from './components/Footer'
 import ScrollProgress from './components/ScrollProgress'
 import WorldLayer from './world/WorldLayer'
 import WorldHUD from './components/WorldHUD'
+import EclipseFlash from './components/EclipseFlash'
+import SoundToggle from './components/SoundToggle'
 import VoiceControl from './components/VoiceControl'
 import { usePrefersReducedMotion } from './hooks/usePrefersReducedMotion'
 
@@ -144,11 +146,18 @@ function App() {
           <CommandCenter />
           <WorldHUD />
           <VoiceControl />
+          <SoundToggle />
 
           {/* Content rides above the world. */}
           <div className="relative z-10">
             <AnimatedRoutes />
           </div>
+
+          {/* Above the content, not behind it. The canvas is behind the whole
+              document, so without this the artifact can fill the viewport in 3D
+              while every heading stays painted on top — which reads as a video
+              playing behind a webpage rather than as a cut. */}
+          <EclipseFlash />
         </div>
       </Router>
     </HelmetProvider>
