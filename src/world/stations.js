@@ -74,15 +74,20 @@ const station = (i, id, { x = 0, y = 0, lookX = 0, lookY = 0, mood }) => ({
 export const STATIONS = [
   // THE OPENING. Cyan accent, high cool power, lifted ambient and a long fog
   // reach — the frame should read as a deep lit volume, not as a dark room
-  // with objects in it. Vignette is pulled well back for the same reason: a
-  // heavy vignette is what was making the corners read as flat black.
+  // with objects in it.
+  //
+  // The vignette is NOT pulled back, and that is a correction. Dropping it to
+  // 0.58 alongside the lifted sky produced a uniformly bright blue frame with
+  // no edges — luminous, but flat, and flat reads as cheap in exactly the way
+  // flat black does. Brightness in the centre needs falloff at the corners to
+  // become depth rather than a wash.
   station(0, 'hero', {
     x: 0, y: 1.0, lookX: 0.0, lookY: 0.6,
-    mood: { coolPower: 1.55, fogNear: 16, fogFar: 150, accent: '#3ad4ff', ambient: 0.98, density: 0.72, light: 1.34, accentPower: 0.58, exposure: 1.18, bloom: 0.58, vignette: 0.58 },
+    mood: { coolPower: 1.55, fogNear: 16, fogFar: 150, accent: '#3ad4ff', ambient: 0.98, density: 0.72, light: 1.34, accentPower: 0.58, exposure: 1.14, bloom: 0.58, vignette: 0.82 },
   }),
   station(1, 'about', {
     x: -7, y: 4.5, lookX: -0.5, lookY: 0.9,
-    mood: { coolPower: 1.48, fogNear: 16, fogFar: 142, accent: '#4bb8f5', ambient: 0.96, density: 0.76, light: 1.32, accentPower: 0.52, exposure: 1.14, bloom: 0.6, vignette: 0.64 },
+    mood: { coolPower: 1.48, fogNear: 16, fogFar: 142, accent: '#4bb8f5', ambient: 0.96, density: 0.76, light: 1.32, accentPower: 0.52, exposure: 1.12, bloom: 0.6, vignette: 0.8 },
   }),
   // The handover. Violet is the hinge between the opening's cyan and the
   // crimson the rest of the journey runs on — going straight from one to the

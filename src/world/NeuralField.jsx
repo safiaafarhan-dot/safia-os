@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { scrollState } from '../state/scrollStore'
+import { ignitionAt, scrollState } from '../state/scrollStore'
 import { chargedInfluenceAt, cursorField } from './cursorFieldState'
 import { safeZone } from './safeZone'
 
@@ -555,7 +555,11 @@ export default function NeuralField({ count = 90, reducedMotion = false }) {
     linkGeometry.attributes.aAct.needsUpdate = true
 
     /* ---- band presence and column clearance ----------------------------- */
-    const fade = present * (0.85 + energy * 0.15)
+    // LAST TO ARRIVE, and deliberately so. The nodes already spring outward
+    // from a single point at t=0, so gating their brightness to the end of the
+    // ramp means the sequence reads as: space lights, structures resolve, and
+    // only then does the thing in the middle start computing.
+    const fade = present * (0.85 + energy * 0.15) * ignitionAt(0.46, 1)
     for (const mat of [nodeMatRef.current, linkMatRef.current]) {
       if (!mat) continue
       mat.uniforms.uFade.value = fade

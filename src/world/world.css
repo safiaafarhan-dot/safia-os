@@ -3,8 +3,25 @@
  *
  * This exists so the page is never a flat black rectangle — not during the
  * first paint, not on hardware without WebGL, not if the GL context is lost.
- * Black stays the dominant tone; these are extremely low-contrast veils that
- * read as depth in the room rather than as visible gradients.
+ *
+ * IT IS ALSO THE SINGLE LARGEST COLOUR SURFACE ON THE PAGE, which is why it
+ * was rebuilt. The previous ladder ran #1c2333 -> #070910: four desaturated
+ * near-blacks, with the LARGEST light pool set to crimson and parked in the
+ * top-left corner. Composited, that is a dull maroon wash over grey-black
+ * covering most of the viewport — the environment read as dim and slightly
+ * red no matter what the WebGL layer did on top of it, because this is what
+ * the WebGL layer was being composited against.
+ *
+ * The ladder is now genuinely NAVY and genuinely LIT: it rises to a lifted
+ * electric navy at the top of frame and falls to deep midnight at the edges,
+ * so the frame has a light source instead of a floor. Blue and cyan own the
+ * two largest pools, violet supports, magenta is a hint, and crimson is the
+ * smallest and faintest of the four.
+ *
+ * Why the alphas are higher than before: over a near-black base, a 0.2 veil is
+ * invisible mud. Over a lifted navy base it reads as coloured light. Luminance
+ * and saturation have to move together — raising one alone is what produces
+ * either a washed-out grey or a neon smear.
  *
  * Only transform and opacity are animated, so the whole layer stays on the
  * compositor and never triggers layout or paint while it drifts.
@@ -20,13 +37,15 @@
 .world-backdrop {
   position: absolute;
   inset: 0;
-  /* Not #000. A near-black with a slight cool cast reads as atmosphere with
-     depth; pure black reads as an unlit surface. */
+  /* Two stacked gradients: a violet floor bottom-left, and the main navy
+     ladder lit from the upper right — the same side the world's structures
+     and the neural field occupy, so the CSS and the WebGL agree about where
+     the light is coming from. */
   background:
-    radial-gradient(130% 100% at 50% 8%, #1c2333 0%, #10151f 42%, #0a0d14 72%, #070910 100%);
+    radial-gradient(95% 75% at 8% 100%, rgba(84, 44, 148, 0.42) 0%, rgba(48, 26, 92, 0.18) 45%, transparent 72%),
+    radial-gradient(140% 108% at 64% 2%, #27467a 0%, #1a3059 26%, #101f3d 52%, #0a1428 76%, #060c18 100%);
   overflow: hidden;
 }
-
 /* Slow-drifting light pools. Each moves on its own long, prime-ish period so
    the composite never visibly repeats. */
 .world-veil {
@@ -38,30 +57,53 @@
 }
 
 .world-veil--a {
-  width: 65vw;
-  height: 65vw;
-  top: -18vw;
-  left: -12vw;
-  background: radial-gradient(circle, rgba(214, 32, 62, 0.3), transparent 65%);
+  width: 78vw;
+  height: 78vw;
+  top: -26vw;
+  right: -16vw;
+  background: radial-gradient(circle, rgba(64, 178, 255, 0.5) 0%, rgba(38, 120, 220, 0.26) 38%, transparent 66%);
   animation: worldDriftA 47s ease-in-out infinite;
 }
 
 .world-veil--b {
-  width: 55vw;
-  height: 55vw;
-  bottom: -16vw;
-  right: -10vw;
-  background: radial-gradient(circle, rgba(92, 176, 212, 0.24), transparent 65%);
+  width: 62vw;
+  height: 62vw;
+  bottom: -20vw;
+  left: -14vw;
+  background: radial-gradient(circle, rgba(132, 86, 236, 0.42) 0%, rgba(84, 52, 176, 0.2) 40%, transparent 68%);
   animation: worldDriftB 61s ease-in-out infinite;
 }
 
 .world-veil--c {
-  width: 45vw;
-  height: 45vw;
-  top: 32%;
-  left: 45%;
-  background: radial-gradient(circle, rgba(140, 100, 220, 0.2), transparent 65%);
+  width: 46vw;
+  height: 46vw;
+  top: 26%;
+  left: 38%;
+  background: radial-gradient(circle, rgba(96, 226, 244, 0.26) 0%, rgba(52, 150, 200, 0.12) 42%, transparent 68%);
   animation: worldDriftC 73s ease-in-out infinite;
+}
+
+/* Magenta, and then crimson: the two smallest and faintest pools in the set.
+   They exist so the palette has a warm end at all — without them the frame
+   goes monochrome blue, which reads as a colour cast rather than as a lit
+   space. They must never grow: the moment crimson is large here, the whole
+   page tints red again. */
+.world-veil--d {
+  width: 34vw;
+  height: 34vw;
+  bottom: 4%;
+  right: 16%;
+  background: radial-gradient(circle, rgba(206, 78, 186, 0.2) 0%, transparent 62%);
+  animation: worldDriftD 89s ease-in-out infinite;
+}
+
+.world-veil--e {
+  width: 26vw;
+  height: 26vw;
+  top: 8%;
+  left: 6%;
+  background: radial-gradient(circle, rgba(224, 46, 78, 0.16) 0%, transparent 60%);
+  animation: worldDriftC 101s ease-in-out infinite;
 }
 
 @keyframes worldDriftA {
@@ -81,6 +123,11 @@
   50%      { transform: translate3d(-9vw, 7vh, 0) scale(1.2); opacity: 0.85; }
 }
 
+@keyframes worldDriftD {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.5; }
+  45%      { transform: translate3d(5vw, -8vh, 0) scale(1.18); opacity: 0.8; }
+}
+
 /**
  * Fine grain. Breaks up the gradient banding that large, very dark blurs
  * always produce on 8-bit displays, and adds a film-like texture that keeps
@@ -89,7 +136,7 @@
 .world-grain {
   position: absolute;
   inset: -50%;
-  opacity: 0.028;
+  opacity: 0.034;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
   animation: worldGrain 6s steps(4) infinite;
   will-change: transform;
@@ -151,9 +198,9 @@
   pointer-events: none;
   background: radial-gradient(
     ellipse 78% 62% at 50% 50%,
-    rgba(7, 9, 14, 0.9) 0%,
-    rgba(7, 9, 14, 0.78) 45%,
-    rgba(7, 9, 14, 0.4) 72%,
+    rgba(7, 12, 26, 0.88) 0%,
+    rgba(8, 14, 30, 0.74) 45%,
+    rgba(9, 17, 36, 0.36) 72%,
     transparent 100%
   );
 }
@@ -162,9 +209,9 @@
 .station--dense::before {
   background: radial-gradient(
     ellipse 88% 70% at 50% 50%,
-    rgba(7, 9, 14, 0.93) 0%,
-    rgba(7, 9, 14, 0.86) 55%,
-    rgba(7, 9, 14, 0.5) 78%,
+    rgba(7, 12, 26, 0.91) 0%,
+    rgba(8, 14, 30, 0.82) 55%,
+    rgba(9, 17, 36, 0.46) 78%,
     transparent 100%
   );
 }

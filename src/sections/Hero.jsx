@@ -31,9 +31,14 @@ const Hero = () => {
           so the darkest corner still has a light source in it rather than
           falling to a single value. */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute inset-0 hidden md:block bg-[linear-gradient(to_right,rgba(6,12,26,0.93)_0%,rgba(7,14,30,0.80)_38%,rgba(8,16,34,0.10)_66%,transparent_100%)]" />
-        <div className="absolute inset-0 md:hidden bg-[linear-gradient(to_bottom,rgba(7,13,28,0.06)_0%,rgba(7,13,28,0.20)_22%,rgba(6,12,26,0.88)_34%,rgba(6,12,26,0.94)_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_12%_88%,rgba(38,120,190,0.16)_0%,rgba(20,60,120,0.05)_38%,transparent_70%)]" />
+        <div className="absolute inset-0 hidden md:block bg-[linear-gradient(to_right,rgba(6,13,30,0.86)_0%,rgba(8,17,38,0.66)_36%,rgba(10,22,46,0.08)_64%,transparent_100%)]" />
+        <div className="absolute inset-0 md:hidden bg-[linear-gradient(to_bottom,rgba(7,15,32,0.04)_0%,rgba(7,15,32,0.16)_22%,rgba(6,13,30,0.82)_34%,rgba(6,13,30,0.9)_55%)]" />
+        {/* Two coloured bounces rather than one. The scrim has to darken the
+            text column, but a darkened area with no colour in it is a grey
+            panel — these put a cool source under the copy and a violet one
+            behind the wordmark, so the "dark" half of the frame is still lit. */}
+        <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_10%_92%,rgba(46,140,215,0.22)_0%,rgba(24,72,140,0.07)_40%,transparent_72%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(70%_55%_at_30%_28%,rgba(112,72,206,0.16)_0%,transparent_66%)]" />
       </div>
 
       <div className="relative z-10 w-full max-w-6xl mx-auto px-6 md:px-10">

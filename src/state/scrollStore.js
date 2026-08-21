@@ -33,6 +33,19 @@ export const useScrollStore = create(() => ({
   energy: 0,
   /** Seconds since mount, advanced by the driver so every effect shares a clock. */
   time: 0,
+  /**
+   * 0..1 ignition ramp, filled once over the first few seconds of the session.
+   *
+   * This is what makes the world ASSEMBLE rather than appear. Layers read it
+   * through `ignitionAt()` with their own start/end window, so the environment
+   * arrives in depth order — sky, then structures, then the computational core
+   * — instead of every system switching on in the same frame.
+   *
+   * Deliberately one-way and one-shot. It is an arrival, not a loop, and
+   * re-running it on every scroll to top would turn a first impression into a
+   * recurring animation.
+   */
+  ignition: 0,
 }))
 
 export const scrollState = useScrollStore.getState
@@ -41,6 +54,19 @@ export const setScrollState = useScrollStore.setState
 if (import.meta.env.DEV) {
   window.__scrollStores = window.__scrollStores || []
   window.__scrollStores.push(useScrollStore)
+}
+
+/**
+ * A layer's own slice of the ignition ramp, eased.
+ *
+ * `start`/`end` are positions within the global 0..1 ramp, so a layer that
+ * wants to arrive late passes something like (0.45, 0.95). The ease is a
+ * smoothstep so layers fade up rather than wiping in.
+ */
+export const ignitionAt = (start, end) => {
+  const v = useScrollStore.getState().ignition
+  const t = Math.max(0, Math.min(1, (v - start) / Math.max(0.0001, end - start)))
+  return t * t * (3 - 2 * t)
 }
 
 /** Inject energy into the world (0..1 added, clamped). */

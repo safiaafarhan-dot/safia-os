@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { scrollState } from '../state/scrollStore'
+import { ignitionAt, scrollState } from '../state/scrollStore'
 import { nearFieldsSuppressed, pushOutOfColumn } from './safeZone'
 import { blackHoleState } from './blackHoleState'
 import { STATIONS, STATION_SPACING, WORLD_DEPTH, sampleMood } from './stations'
@@ -81,7 +81,13 @@ const skyFragment = /* glsl */ `
     // weak: it exists to stop the band between the two sources reading as a
     // dead zone, and should never be identifiable as its own light.
     float band = 1.0 - abs(dir.y);
-    col += vec3(0.042, 0.024, 0.062) * pow(band, 4.0) * 0.42;
+    col += vec3(0.072, 0.040, 0.115) * pow(band, 3.0) * 0.72;
+
+    // A GLASS-WHITE ZENITH BLOOM. Very wide, very weak, and pure highlight:
+    // it is what stops the top of frame reading as a ceiling. Without a
+    // near-white anywhere in the gradient the eye reads the whole image as
+    // underexposed no matter how saturated the mid-tones are.
+    col += vec3(0.05, 0.068, 0.098) * pow(smoothstep(0.42, 1.0, h), 2.4);
 
     // Hash dither. Very dark wide gradients band badly on 8-bit displays, and
     // banding is the single most "cheap render" artefact there is.
@@ -91,6 +97,23 @@ const skyFragment = /* glsl */ `
     gl_FragColor = vec4(col, 1.0);
   }
 `
+
+const skyAccent = new THREE.Color()
+const skyAccentNext = new THREE.Color()
+
+/**
+ * THE LIFT IS SCOPED TO THE OPENING.
+ *
+ * The luminous ladder belongs to the hero's abstract-dimension direction. The
+ * rest of the journey — the matter band, the worlds, the deep archive — was
+ * graded against the darker sky it already had, and quietly raising the floor
+ * under all eight stations would have re-lit six sections nobody asked to
+ * change. These are the two ends, blended by depth.
+ */
+const SKY_OPEN_ZENITH = new THREE.Color('#1d3a6b')
+const SKY_OPEN_NADIR = new THREE.Color('#070f20')
+const SKY_DEEP_ZENITH = new THREE.Color('#0c1424')
+const SKY_DEEP_NADIR = new THREE.Color('#05080f')
 
 function Sky() {
   const matRef = useRef()
@@ -102,12 +125,31 @@ function Sky() {
       // depth; pure black reads as an unlit surface.
       // Lifted off black. The nadir in particular was #03050a, which is within
       // rounding distance of pure black across the whole lower hemisphere.
-      uZenith: { value: new THREE.Color('#0c1424') },
-      uNadir: { value: new THREE.Color('#05080f') },
-      uGlow: { value: new THREE.Color('#8c0f24') },
-      uGlowPower: { value: 0.45 },
-      uCoolGlow: { value: new THREE.Color('#175a7c') },
-      uCoolPower: { value: 0.3 },
+      // LIFTED, AND GENUINELY NAVY.
+      //
+      // These were #0c1424 over #05080f — a very dark navy over something
+      // within rounding distance of pure black. Combined with a CRIMSON key
+      // light, the background of every frame was "near-black, tinted red",
+      // which is precisely the dull look this direction rejects. The ladder now
+      // runs a lit electric navy down to a deep midnight that still has colour
+      // in it, and the key light is no longer a fixed crimson at all.
+      uZenith: { value: new THREE.Color('#1d3a6b') },
+      // The floor stays genuinely dark. Luminous does not mean uniformly
+      // bright: the first pass lifted every value at once and the frame became
+      // a flat blue wash with no range in it, which reads as cheap in exactly
+      // the same way flat black does. The image needs a lit core AND a dark
+      // edge — that contrast is what depth actually is.
+      uNadir: { value: new THREE.Color('#070f20') },
+      // Tracks the station accent — cyan through the opening, violet at
+      // Skills, crimson deeper in. One value, so the sky's own light is
+      // always the same colour as the light in the scene instead of arguing
+      // with it.
+      uGlow: { value: new THREE.Color('#3ad4ff') },
+      uGlowPower: { value: 0.6 },
+      // A real electric blue rather than the previous dull teal, and strong
+      // enough to be a source rather than a counter-glow.
+      uCoolGlow: { value: new THREE.Color('#3f9ae8') },
+      uCoolPower: { value: 0.34 },
       uGlowDir: { value: new THREE.Vector3(0.6, 0.3, -1) },
       uTime: { value: 0 },
     }),
@@ -125,11 +167,31 @@ function Sky() {
     // part of the choreography rather than a static backdrop.
     const a = s.time * 0.017 + s.station * 0.62
     u.uGlowDir.value.set(Math.sin(a), 0.2 + Math.cos(a * 0.6) * 0.28, Math.cos(a) - 0.4)
-    u.uGlowPower.value = 0.32 + sampleMood(s.station, 'accentPower') * 0.4 + s.energy * 0.16
+    // Lerp the key toward the current station's accent. Doing this here rather
+    // than hardcoding a hue is what lets the whole sky turn over the course of
+    // the journey without a second palette existing anywhere.
+    const i = Math.max(0, Math.min(STATIONS.length - 1, Math.floor(s.station)))
+    const j = Math.min(STATIONS.length - 1, i + 1)
+    skyAccent.set(STATIONS[i].mood.accent).lerp(skyAccentNext.set(STATIONS[j].mood.accent), s.station - i)
+    u.uGlow.value.lerp(skyAccent, 0.05)
+    // FIRST TO ARRIVE. The sources come up out of near-darkness, so the
+    // session opens on deep space with light entering it rather than on a
+    // finished frame.
+    // Fully lifted through hero and About, back to the original grade by
+    // Experience, so the handover happens across the same stations the accent
+    // hue does and reads as travel rather than as a lighting change.
+    const openness = 1 - THREE.MathUtils.smoothstep(s.station, 1.2, 3.0)
+    u.uZenith.value.copy(SKY_DEEP_ZENITH).lerp(SKY_OPEN_ZENITH, openness)
+    u.uNadir.value.copy(SKY_DEEP_NADIR).lerp(SKY_OPEN_NADIR, openness)
+
+    const lit = 0.12 + ignitionAt(0, 0.4) * 0.88
+    u.uGlowPower.value = (0.4 + sampleMood(s.station, 'accentPower') * 0.36 + s.energy * 0.16) * lit
     // The cool source breathes on its own slow cycle, out of phase with the
     // warm one, so the sky is never static even when nothing is happening.
+    // Tuned down from 0.4 + cool*0.4: at station 0 that resolved to ~1.02 and
+    // the cool lobe flooded most of the frame.
     u.uCoolPower.value =
-      0.24 + sampleMood(s.station, 'coolPower') * 0.34 + Math.sin(s.time * 0.06) * 0.06 + s.energy * 0.1
+      (0.24 + sampleMood(s.station, 'coolPower') * 0.26 + Math.sin(s.time * 0.06) * 0.06 + s.energy * 0.1) * lit
   })
 
   return (

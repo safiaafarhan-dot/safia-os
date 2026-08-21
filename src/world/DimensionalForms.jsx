@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { scrollState } from '../state/scrollStore'
+import { ignitionAt, scrollState } from '../state/scrollStore'
 import { influenceAt } from './cursorFieldState'
 import { keepOutAmount } from './safeZone'
 
@@ -216,7 +216,10 @@ function Form({
     // pointer without the whole world lurching toward it.
     const inf = influenceAt(world.x, world.y, world.z, 90) * 0.35
 
-    mat.uniforms.uOpacity.value = present * opacity * (1 - blocked * 0.75) * (1 + inf)
+    // SECOND TO ARRIVE: the large structures resolve out of the lit space
+    // once the space itself exists to resolve out of.
+    mat.uniforms.uOpacity.value =
+      present * opacity * (1 - blocked * 0.75) * (1 + inf) * ignitionAt(0.22, 0.62)
     mat.uniforms.uPulse.value = time * 0.42 + energy * 1.6
   })
 

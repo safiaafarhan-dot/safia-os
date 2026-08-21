@@ -119,11 +119,18 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
         1
       )
 
+      // The ignition ramp. Fills over ~4.2s and then stays full for the rest
+      // of the session — see the note in scrollStore. Reduced motion skips
+      // straight to 1: an arrival sequence is exactly the kind of unrequested
+      // motion that preference exists to remove.
+      const ignition = reducedMotion ? 1 : Math.min(1, prev.ignition + dt / 4.2)
+
       setScrollState({
         progress,
         smooth,
         velocity,
         station,
+        ignition,
         pointerSmoothX,
         pointerSmoothY,
         energy,

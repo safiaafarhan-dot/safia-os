@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
+import { useProximityText } from '../../hooks/useProximityText'
 
 /**
  * SAFIA.OS — the operating core of the dimension, assembling itself.
@@ -47,8 +48,19 @@ const EASE = [0.16, 1, 0.3, 1]
 
 const Wordmark = ({ text = 'SAFIA.OS', accentChar = '.', className = '', delay = 0.2 }) => {
   const reducedMotion = usePrefersReducedMotion()
-
   const chars = useMemo(() => text.split(''), [text])
+
+  // Proximity is armed only once the letters have actually landed. Enabling it
+  // during assembly would cache each glyph's centre mid-flight, and every
+  // letter would then be pulled toward a position it no longer occupies.
+  const [settled, setSettled] = useState(false)
+  useEffect(() => {
+    if (reducedMotion) return
+    const t = setTimeout(() => setSettled(true), (delay + 1.35) * 1000)
+    return () => clearTimeout(t)
+  }, [reducedMotion, delay])
+
+  const proximityRef = useProximityText({ enabled: settled && !reducedMotion })
 
   if (reducedMotion) {
     return (
@@ -67,7 +79,7 @@ const Wordmark = ({ text = 'SAFIA.OS', accentChar = '.', className = '', delay =
   return (
     <h1 className={`relative ${className}`} aria-label={text}>
       {/* THE GLYPHS. Each converges from its own offset. */}
-      <span className="relative inline-block" aria-hidden="true">
+      <span className="relative inline-block" aria-hidden="true" ref={proximityRef}>
         {chars.map((c, i) => {
           const a = scatter(i, 1)
           const b = scatter(i, 2)
@@ -105,8 +117,15 @@ const Wordmark = ({ text = 'SAFIA.OS', accentChar = '.', className = '', delay =
                 delay: delay + a * 0.42,
               }}
             >
-              {/* A space collapses to zero width as an inline-block. */}
-              {c === ' ' ? ' ' : c}
+              {/* Two nested spans on purpose. The OUTER element is owned by
+                  framer-motion for the assembly; the INNER one is owned by the
+                  proximity loop. Sharing a single element would mean two
+                  systems writing the same `transform` every frame, and
+                  whichever wrote last would win. */}
+              <span data-proximity-letter className="inline-block">
+                {/* A space collapses to zero width as an inline-block. */}
+                {c === ' ' ? ' ' : c}
+              </span>
             </motion.span>
           )
         })}

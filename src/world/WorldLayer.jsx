@@ -92,6 +92,8 @@ const WorldLayer = () => {
         <span className="world-veil world-veil--a" />
         <span className="world-veil world-veil--b" />
         <span className="world-veil world-veil--c" />
+        <span className="world-veil world-veil--d" />
+        <span className="world-veil world-veil--e" />
         <span className="world-grain" />
       </div>
 
