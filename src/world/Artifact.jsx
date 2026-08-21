@@ -5,6 +5,7 @@ import { scrollState } from '../state/scrollStore'
 import { chargedInfluenceAt } from './cursorFieldState'
 import { artifactState } from './artifactState'
 import { playCrack, playImpact, playReassemble } from '../lib/crackAudio'
+import { timelineAt, clamp01, span, easeIn } from './transitTimeline'
 
 /**
  * THE ARTIFACT — the one cinematic event in the home experience.
@@ -121,18 +122,8 @@ const TRANSITS = [
     ringAColor: '#ff4d68', ringBColor: '#ff7a8c', halo: '#ff6a80', flash: '#ffd4dc', light: '#ff2d4d' },
 ]
 
-/** How far before its boundary a transit begins.
- *
- *  The first one has the whole opening to itself and keeps the original, longer
- *  run-up. Every later one has to start AFTER its predecessor has finished
- *  blowing past the lens at +0.26, or two objects share the frame and the shot
- *  loses its subject. -0.70 is the first value that clears it. */
-const startFor = (at) => (at === 1 ? -0.84 : -0.7)
 
-const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v)
-const span = (v, a, b) => clamp01((v - a) / (b - a))
-const easeIn = (t) => t * t * t
-const easeOut = (t) => 1 - Math.pow(1 - t, 3)
+
 
 /* ------------------------------------------------------------------ core -- */
 
@@ -318,20 +309,14 @@ export default function Artifact({ reducedMotion = false }) {
     const { station, time, energy } = scrollState()
     const dt = Math.min(0.05, delta)
 
-    /* ---- which boundary owns this frame -------------------------------- */
-    // The previous transit is still blowing past the lens until +0.26, so the
-    // next one cannot claim the frame before +0.3. Handing over on the nearest
-    // integer instead would either cut the fracture short or start the next
-    // approach halfway down its run-up.
-    const prev = Math.floor(station)
-    const at = Math.max(1, Math.min(TRANSITS.length, station - prev < 0.3 ? prev : prev + 1))
-    const start = startFor(at)
-    // Everything below is expressed relative to the boundary, so a transit at
-    // station 5 behaves exactly as the verified one at station 1.
-    const s = station - at
+    /* ---- the timeline -------------------------------------------------- */
+    // Resolved by the pure module this component shares with
+    // scripts/check-transits.mjs, so the choreography that is checked headlessly
+    // across the whole journey is literally the choreography that runs here.
+    const T = timelineAt(station, { reducedMotion })
+    const { at, s, live } = T
 
     /* ---- presence ------------------------------------------------------ */
-    const live = s > start && s < 0.3
     if (!live) {
       if (g.visible) {
         g.visible = false
@@ -375,26 +360,21 @@ export default function Artifact({ reducedMotion = false }) {
     }
 
     // 0..1 across the whole event.
-    const p = span(s, start, 0.26)
-    artifactState.progress = p
+    artifactState.progress = T.p
     artifactState.transit = at
     // Rises through the closing phase and holds through the break, so the rest
     // of the world clears the frame while this is the subject.
-    artifactState.dominance = reducedMotion ? 0 : span(s, -0.42, -0.03)
+    artifactState.dominance = T.dominance
 
     /* ---- distance: inverse-square-ish, not linear ---------------------- */
     // Reduced motion parks it mid-approach and never brings it at the camera.
     // A large object rushing the viewport is exactly the kind of vestibular
     // trigger the preference exists to prevent.
-    const travel = reducedMotion ? 0.42 : span(s, start, 0)
-    const eased = easeIn(travel)
-    const FAR = 300
-    const NEAR = 1.35
-    const dist = FAR - (FAR - NEAR) * eased
+    const dist = T.dist
 
     // Held off-axis for most of the approach so it does not read as a
     // dead-centre zoom, then pulled to centre as it closes.
-    const centring = easeOut(span(s, -0.45, -0.06))
+    const centring = T.centring
     const offX = (1 - centring) * 26 * Math.cos(station * 1.9 + 0.4)
     const offY = (1 - centring) * 13 * Math.sin(station * 2.4)
 
@@ -407,7 +387,7 @@ export default function Artifact({ reducedMotion = false }) {
 
     // Scale grows with proximity as well as distance shrinking, so the last
     // stretch is genuinely overwhelming rather than merely nearer.
-    const grow = 1 + easeIn(span(s, -0.4, 0.02)) * 5.5
+    const grow = T.grow
     g.scale.setScalar(grow)
 
     /* ---- fracture ------------------------------------------------------ */
@@ -416,7 +396,7 @@ export default function Artifact({ reducedMotion = false }) {
     const cursorStress = reducedMotion
       ? 0
       : chargedInfluenceAt(g.position.x, g.position.y, g.position.z, 34 + grow * 6)
-    const eclipseBreak = span(s, -0.02, 0.2)
+    const eclipseBreak = T.eclipseBreak
     const fracture = clamp01(Math.max(cursorStress * 0.72, eclipseBreak))
     artifactState.fracture = fracture
 
@@ -470,7 +450,7 @@ export default function Artifact({ reducedMotion = false }) {
     shell.instanceMatrix.needsUpdate = true
 
     /* ---- core and rings ------------------------------------------------ */
-    const charge = clamp01(span(s, -0.6, 0) + energy * 0.2 + cursorStress * 0.4)
+    const charge = clamp01(T.charge + energy * 0.2 + cursorStress * 0.4)
     if (coreMatRef.current) {
       const u = coreMatRef.current.uniforms
       u.uCharge.value = charge
@@ -493,7 +473,7 @@ export default function Artifact({ reducedMotion = false }) {
     // apparent size stays roughly constant until the handover.
     if (haloRef.current && haloMatRef.current) {
       const near = span(dist, 26, 150)
-      const amt = clamp01(near) * clamp01(span(s, start, start + 0.12)) * (0.8 + charge * 0.5)
+      const amt = clamp01(near) * clamp01(span(s, T.start, T.start + 0.12)) * (0.8 + charge * 0.5)
       haloMatRef.current.uniforms.uAmount.value = amt
       haloRef.current.visible = amt > 0.004
       if (haloRef.current.visible) {
@@ -512,8 +492,8 @@ export default function Artifact({ reducedMotion = false }) {
     // being a cut and start being an obstruction, with the page's text
     // unreadable underneath it the whole time. Tightened to a fast rise and a
     // quick fall so it reads as an exposure blowing out and recovering.
-    const flash = clamp01(span(s, -0.05, 0.01)) * (1 - span(s, 0.02, 0.11))
-    artifactState.flash = reducedMotion ? 0 : flash
+    const flash = T.flash
+    artifactState.flash = flash
 
     const fq = flashRef.current
     if (fq && flashMatRef.current) {
