@@ -252,12 +252,23 @@ export default function Sparks({ count = 260, reducedMotion = false }) {
       return
     }
 
+    // RE-ARM ON LEAVING THE TRANSIT, NOT ON THE EMBERS BURNING OUT.
+    //
+    // The guard used to reset when the burst was spent, which is a different
+    // event and a much shorter one: the embers live 2.2s, while scrolling
+    // slowly through a single boundary takes longer than that. So the same
+    // transit re-armed mid-crossing and burst again — measured at 3 bursts for
+    // one scrub across a boundary and 2 for a repeat arrival, where one is
+    // correct.
+    //
+    // `artifactState.transit` is 0 whenever no transit is live, so it is the
+    // exact signal for "we have left this cut". Re-arming on that makes the
+    // burst strictly one-per-transit-occupancy, idempotent under scrubbing in
+    // either direction, and still ready for the next approach.
+    if (artifactState.transit === 0) burstFor.current = 0
+
     age.current += delta
     if (age.current > MAX_LIFE) {
-      // Released once the burst is spent, so the NEXT approach to this same
-      // boundary can burn again — scrubbing back and forth over a whole
-      // section should not permanently disarm its cut.
-      burstFor.current = 0
       age.current = null
       g.visible = false
       return

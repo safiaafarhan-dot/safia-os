@@ -8,7 +8,16 @@
  *
  *   node scripts/check-transits.mjs
  */
-import { timelineAt, TRANSIT_COUNT, startFor, shockwaveAt } from '../src/world/transitTimeline.js'
+import {
+  timelineAt,
+  TRANSIT_COUNT,
+  startFor,
+  shockwaveAt,
+  flashOpacity,
+  FLASH_MAX_OPACITY,
+  FLASH_CEILING,
+  ARRIVAL_SETTLED,
+} from '../src/world/transitTimeline.js'
 import { STATION_TAIL, STATIONS } from '../src/world/stations.js'
 
 const STEP = 0.002
@@ -65,11 +74,16 @@ for (let at = 1; at <= TRANSIT_COUNT; at++) {
     was = on
     if (f > peak) { peak = f; peakAt = st }
   }
+  // Peak is asserted against that boundary's OWN ceiling, not against 1.
+  // The final boundary is the arrival rather than a cut and is deliberately
+  // quiet — see FLASH_CEILING. Hard-coding 0.6 here would mean the closing
+  // shot could only ever be tuned by editing this test, which is backwards.
+  const want = FLASH_CEILING[at] ?? 1
   if (crossings !== 1) fail(`boundary ${at} flashes ${crossings} times`)
-  else if (peak < 0.6) fail(`boundary ${at} flash peaks at only ${peak.toFixed(2)}`)
+  else if (peak < want * 0.8) fail(`boundary ${at} flash peaks at ${peak.toFixed(2)}, short of its ${want} ceiling`)
   else if (Math.abs(peakAt - at) > 0.05) fail(`boundary ${at} flash peaks at ${peakAt.toFixed(3)}, off-boundary`)
 }
-if (!failures) ok('every boundary flashes once, peaking at the boundary')
+if (!failures) ok('every boundary flashes once, peaking at the boundary, up to its own ceiling')
 
 /* 5. The approach is monotone: distance only ever closes while live. */
 let nonMonotone = 0
@@ -200,6 +214,110 @@ else ok('reduced motion parks it mid-approach and never flashes')
   const margin = STATION_TAIL - 0.26
   if (margin < 0.1) fail(`station tail leaves only ${margin.toFixed(3)} of settle after the cut`)
   else ok(`tail leaves ${margin.toFixed(2)} stations of settle after the cut`)
+}
+
+/* 10. THE ARRIVAL INTERVAL — not just the parked frame. */
+{
+  // WHAT WENT WRONG, so this is never re-tuned away.
+  //
+  // The eclipse was authored as a cut BETWEEN shots. This document has no
+  // between: every section runs 1.8-3.0 viewports tall, so at the instant the
+  // flash peaked the ARRIVING section already covered 100% of the screen.
+  // Measured on the real page at all seven boundaries: overlay opacity 0.880
+  // over fully readable content, every time. It was never washing out a
+  // transition, it was washing out the page. Contact is simply where it was
+  // noticed, because Contact is a form you stop and read.
+  //
+  // These assertions cover the interval the visitor actually scrolls through,
+  // which is what the parked-state check in section 9 could not see.
+
+  // (a) The overlay may never erase the page, at any boundary, at any point.
+  let worstOpacity = 0
+  let worstAt = 0
+  for (let at = 1; at <= TRANSIT_COUNT; at++) {
+    for (let o = startFor(at); o <= 0.3; o += 0.001) {
+      const op = flashOpacity(timelineAt(at + o).flash)
+      if (op > worstOpacity) {
+        worstOpacity = op
+        worstAt = at
+      }
+    }
+  }
+  if (worstOpacity > FLASH_MAX_OPACITY + 1e-9) {
+    fail(`overlay reaches ${worstOpacity.toFixed(3)} at boundary ${worstAt}, above the ${FLASH_MAX_OPACITY} cap`)
+  } else {
+    ok(`overlay never exceeds its cap (worst ${worstOpacity.toFixed(3)} at boundary ${worstAt})`)
+  }
+
+  // (b) By ARRIVAL_SETTLED past a boundary the cut has let go of the frame
+  //     completely — no flash, and dominance handed back.
+  let notClear = []
+  for (let at = 1; at <= TRANSIT_COUNT; at++) {
+    for (let o = ARRIVAL_SETTLED; o <= 0.3; o += 0.002) {
+      const t = timelineAt(at + o)
+      if (t.flash > 1e-6 || t.dominance > 1e-6) {
+        notClear.push(`${at}@+${o.toFixed(3)} flash ${t.flash.toFixed(3)} dom ${t.dominance.toFixed(3)}`)
+        break
+      }
+    }
+  }
+  if (notClear.length) fail(`cut still holds the frame past settle: ${notClear.join(', ')}`)
+  else ok(`every arrival is clear of flash and dominance by +${ARRIVAL_SETTLED}`)
+
+  // (c) Dominance must be RELEASED, not dropped. It used to clamp at 1 until
+  //     the window closed and then snap to 0 — a visible pop, and a third of a
+  //     station with the whole world dimmed behind readable content.
+  let popped = []
+  for (let at = 1; at <= TRANSIT_COUNT; at++) {
+    let prev = timelineAt(at + 0.29).dominance
+    const after = timelineAt(at + 0.31).dominance
+    if (prev > 0.02 || after > 0.02) popped.push(`${at} (${prev.toFixed(2)} -> ${after.toFixed(2)})`)
+  }
+  if (popped.length) fail(`dominance snaps at the window edge: ${popped.join(', ')}`)
+  else ok('dominance is released before the transit window closes, never dropped')
+
+  // (d) A punch, not a wash. The old window was 0.16 of a station — 220-280px
+  //     of real scroll, held over content the visitor was reading.
+  let longest = 0
+  let longestAt = 0
+  for (let at = 1; at <= TRANSIT_COUNT; at++) {
+    let live = 0
+    for (let o = startFor(at); o <= 0.3; o += 0.001) {
+      if (timelineAt(at + o).flash > 0.01) live += 0.001
+    }
+    if (live > longest) {
+      longest = live
+      longestAt = at
+    }
+  }
+  if (longest > 0.09) fail(`boundary ${longestAt} flash lasts ${longest.toFixed(3)} stations — a wash, not a punch`)
+  else ok(`every flash is a punch (longest ${longest.toFixed(3)} stations, was 0.16)`)
+
+  // (e) One excursion per boundary. Scrubbing back and forth must not be able
+  //     to restack it — the flash is a pure function of station, and this is
+  //     what proves it has a single peak rather than a re-triggering envelope.
+  let multi = []
+  for (let at = 1; at <= TRANSIT_COUNT; at++) {
+    let crossings = 0
+    let above = false
+    for (let o = startFor(at); o <= 0.3; o += 0.001) {
+      const f = timelineAt(at + o).flash
+      if (!above && f > 0.02) { above = true; crossings++ }
+      else if (above && f <= 0.02) above = false
+    }
+    if (crossings !== 1) multi.push(`${at}:${crossings}`)
+  }
+  if (multi.length) fail(`flash is not a single excursion at boundaries ${multi.join(', ')}`)
+  else ok('flash rises and falls exactly once per boundary, in both scroll directions')
+
+  // (f) The destination is calm. The final boundary is an arrival, not a cut.
+  const finalPeak = flashOpacity(FLASH_CEILING[TRANSIT_COUNT])
+  const midPeak = flashOpacity(FLASH_CEILING[1])
+  if (!(finalPeak < midPeak * 0.5)) {
+    fail(`the closing shot is as hot as a mid-journey cut (${finalPeak.toFixed(3)} vs ${midPeak.toFixed(3)})`)
+  } else {
+    ok(`contact arrives quiet: overlay peaks at ${finalPeak.toFixed(3)} vs ${midPeak.toFixed(3)} mid-journey`)
+  }
 }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nAll transit invariants hold.')

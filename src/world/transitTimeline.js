@@ -36,6 +36,56 @@ export const startFor = (at) => (at === 1 ? -0.84 : -0.7)
 export const TRANSIT_COUNT = 7
 
 /**
+ * HOW HOT EACH BOUNDARY'S FLASH IS ALLOWED TO RUN.
+ *
+ * The eclipse was authored as a cut BETWEEN shots. The document has no between:
+ * every section is between 1.8 and 3.0 viewports tall, so at the moment the
+ * flash peaks the arriving section already occupies 100% of the screen. The
+ * overlay was therefore compositing a near-white wash over fully readable
+ * content at all seven boundaries — measured at 0.88 alpha, every time. It was
+ * never covering a transition; it was covering the page.
+ *
+ * The last boundary is not a cut at all. It is the ARRIVAL, and the destination
+ * has to read calm and low-energy — so it gets a fraction of the energy the
+ * mid-journey cuts do. That is a property of the story, not a brightness dial:
+ * you do not punch the audience in the face on the closing shot.
+ *
+ * Index 0 is unused so the array is addressed by boundary id directly.
+ */
+export const FLASH_CEILING = [0, 1, 1, 1, 1, 1, 0.9, 0.3]
+
+/**
+ * The highest opacity the DOM eclipse overlay may ever composite at.
+ *
+ * Shared with EclipseFlash so there is ONE answer to "how much of the page may
+ * this erase", and so the headless check can assert the real number rather than
+ * a copy of it. At the old 0.88 the overlay did not read as light passing
+ * through the page, it read as the page being replaced by a white rectangle.
+ */
+export const FLASH_MAX_OPACITY = 0.4
+
+/**
+ * Station offset past a boundary by which the cut must have completely let go
+ * of the frame — no flash, no dominance.
+ *
+ * The arriving section is already covering the whole viewport well before its
+ * boundary (sections run 1.8-3.0 viewports tall), so "the arrival" is not a
+ * moment, it is an interval the visitor is reading through. This is the point
+ * by which that interval has to be clean. `check-transits.mjs` asserts it.
+ */
+export const ARRIVAL_SETTLED = 0.12
+
+/**
+ * The DOM eclipse overlay's opacity for a given flash value.
+ *
+ * Lives here rather than in the component so the headless check asserts the
+ * SHIPPING curve instead of a copy that can drift — the same reason the whole
+ * timeline is in this module. The square is the ease: light blooms fast and
+ * clears slowly, which is how an actual overexposure behaves.
+ */
+export const flashOpacity = (flash) => Math.min(FLASH_MAX_OPACITY, flash * flash * 1.15)
+
+/**
  * Resolve the whole event at a given fractional station.
  *
  * `at` is the boundary that owns this frame. The previous transit is still
@@ -57,7 +107,17 @@ export function timelineAt(station, { reducedMotion = false } = {}) {
   }
 
   const p = span(s, start, 0.26)
-  const dominance = reducedMotion ? 0 : span(s, -0.42, -0.03)
+  // DOMINANCE HAS TO BE GIVEN BACK, AND IT WAS NOT.
+  //
+  // The rise term alone clamps to 1 at s = -0.03 and stays there until the
+  // transit stops being live at +0.3 — so for a third of a station the object
+  // owned the frame and every other layer was dimmed out of it, while the
+  // arriving section was already filling the screen. Then it snapped to zero
+  // when the window closed, which is a visible pop rather than a handover.
+  //
+  // The release term hands the frame back across the fracture, so the world is
+  // returned before the visitor is reading the new section rather than after.
+  const dominance = reducedMotion ? 0 : span(s, -0.42, -0.03) * (1 - span(s, 0.02, 0.1))
 
   // Inverse-square-ish, not linear. A constant-rate approach reads as a zoom;
   // real approach is dominated by the inverse square of distance, so almost all
@@ -70,9 +130,19 @@ export function timelineAt(station, { reducedMotion = false } = {}) {
   const centring = easeOut(span(s, -0.45, -0.06))
   const grow = 1 + easeIn(span(s, -0.4, 0.02)) * 5.5
   const eclipseBreak = span(s, -0.02, 0.2)
-  // A PUNCH, NOT A WASH: a fast rise and a quick fall, so it reads as an
-  // exposure blowing out and recovering rather than as an obstruction.
-  const flash = reducedMotion ? 0 : clamp01(span(s, -0.05, 0.01)) * (1 - span(s, 0.02, 0.11))
+  // A PUNCH, NOT A WASH — and it was a wash.
+  //
+  // The old window ran from -0.05 to +0.11, which is 0.16 of a station. In real
+  // scroll that is 220-280px, or two to three wheel notches: not an exposure
+  // recovering, a sustained white-out held across a quarter of a section while
+  // the visitor read through it. A blown highlight in a real camera is gone in
+  // a couple of frames.
+  //
+  // The window is now about a third of that, so it is over almost as soon as it
+  // arrives, and scrolling fast passes through it rather than sitting in it.
+  const flash = reducedMotion
+    ? 0
+    : clamp01(span(s, -0.02, 0.0)) * (1 - span(s, 0.005, 0.04)) * (FLASH_CEILING[at] ?? 1)
   const charge = span(s, -0.6, 0)
 
   return { at, s, start, live: true, p, dominance, travel, dist, centring, grow, eclipseBreak, flash, charge }

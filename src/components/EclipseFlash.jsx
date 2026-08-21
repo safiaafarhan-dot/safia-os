@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { artifactState } from '../world/artifactState'
+import { safeZone } from '../world/safeZone'
+import { flashOpacity } from '../world/transitTimeline'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 
 /**
@@ -35,6 +37,39 @@ const EclipseFlash = () => {
     let raf = 0
     let idleFrames = 0
     let shown = false
+    let maskedFor = ''
+
+    /**
+     * PUNCH THE READING COLUMN OUT OF THE FLASH.
+     *
+     * This is the same rule the sky and the bloom already follow, applied to
+     * the last light in the chain that could still land on type. The overlay
+     * is masked so it falls away over the measured reading column: the frame
+     * still blows out around the content, and the content itself stays
+     * legible through it.
+     *
+     * It matters most at exactly the moment it was worst. Every section here
+     * is between 1.8 and 3.0 viewports tall, so when the flash peaks the
+     * arriving section already covers the whole screen — the overlay was never
+     * washing out a transition, it was washing out the page.
+     *
+     * safeZone is in NDC with y up; CSS gradients are in percentages with y
+     * down, hence the flip.
+     */
+    const applyMask = () => {
+      const cx = ((safeZone.left + safeZone.right) * 0.5 + 1) * 50
+      const cy = (1 - (safeZone.top + safeZone.bottom) * 0.5) * 50
+      const rx = Math.max(12, ((safeZone.right - safeZone.left) * 0.5) * 50 * 1.15)
+      const ry = Math.max(12, ((safeZone.top - safeZone.bottom) * 0.5) * 50 * 1.15)
+      const key = `${cx.toFixed(0)},${cy.toFixed(0)},${rx.toFixed(0)},${ry.toFixed(0)}`
+      if (key === maskedFor) return
+      maskedFor = key
+      // Transparent over the column, opaque outside it, with a wide feather so
+      // the boundary is never a visible edge.
+      const mask = `radial-gradient(ellipse ${rx}% ${ry}% at ${cx}% ${cy}%, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.34) 55%, rgba(0,0,0,1) 130%)`
+      el.style.maskImage = mask
+      el.style.webkitMaskImage = mask
+    }
 
     const tick = () => {
       const v = artifactState.flash
@@ -45,12 +80,16 @@ const EclipseFlash = () => {
           el.style.visibility = 'visible'
           shown = true
         }
+        applyMask()
         // Eased so the ramp is not linear with the raw progress: light blooms
         // fast and clears slowly, which is how an actual overexposure behaves.
-        // Capped below 1. The page's content sits under this, and fully
-        // erasing it — even briefly — is a worse trade than a flash that
-        // reads as very bright rather than as total.
-        el.style.opacity = String(Math.min(0.88, v * v * 1.15))
+        //
+        // The ceiling is shared with the timeline rather than written here, so
+        // there is one answer to "how much of the page may this erase" and the
+        // headless check asserts the real number. It was 0.88, which does not
+        // read as light passing through the page — it reads as the page being
+        // replaced by a white rectangle.
+        el.style.opacity = String(flashOpacity(v))
       } else if (shown) {
         el.style.opacity = '0'
         el.style.visibility = 'hidden'
