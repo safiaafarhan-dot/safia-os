@@ -34,6 +34,12 @@ export const artifactState = {
    * one lands.
    */
   dominance: 0,
+  /**
+   * Which boundary is currently playing, 1..7, or 0 between transits. Read by
+   * anything that wants to know WHICH cut is happening rather than merely that
+   * one is — the section assembly uses it to know the frame it is arriving on.
+   */
+  transit: 0,
 }
 
 /**

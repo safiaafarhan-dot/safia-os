@@ -13,6 +13,26 @@ import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
  */
 const EASE = [0.16, 1, 0.3, 1]
 
+/**
+ * Diagnostic: ?revealed=1 renders every reveal in its FINAL state.
+ *
+ * These are driven by IntersectionObserver, which never fires in a tab that is
+ * hidden — and the tab is always hidden under browser automation. The result is
+ * a page whose entire text layer sits at opacity 0, so every screenshot of any
+ * section shows an empty frame and reads as a catastrophic bug in whatever was
+ * actually being tested. Clearing the inline styles by hand does not hold,
+ * because the next render re-applies them.
+ *
+ * This is the same class of switch as ?awake=1 and ?station= in the world
+ * driver, and exists for the same reason: the thing being QA'd must be
+ * reachable without the harness lying about it. DEV only — it is read through
+ * import.meta.env.DEV so it cannot be turned on in production.
+ */
+const forceRevealed =
+  import.meta.env.DEV &&
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).has('revealed')
+
 const containerVariants = (stagger, delay) => ({
   hidden: {},
   shown: {
@@ -39,7 +59,7 @@ export const Reveal = ({
   const reducedMotion = usePrefersReducedMotion()
   const Tag = motion[as] ?? motion.div
 
-  if (reducedMotion) {
+  if (reducedMotion || forceRevealed) {
     const Plain = as
     return <Plain className={className} {...rest}>{children}</Plain>
   }
@@ -71,7 +91,7 @@ export const RevealGroup = ({
   const reducedMotion = usePrefersReducedMotion()
   const Tag = motion[as] ?? motion.div
 
-  if (reducedMotion) {
+  if (reducedMotion || forceRevealed) {
     const Plain = as
     return <Plain className={className} {...rest}>{children}</Plain>
   }
@@ -102,7 +122,7 @@ export const RevealItem = ({
   const reducedMotion = usePrefersReducedMotion()
   const Tag = motion[as] ?? motion.div
 
-  if (reducedMotion) {
+  if (reducedMotion || forceRevealed) {
     const Plain = as
     return <Plain className={className} {...rest}>{children}</Plain>
   }

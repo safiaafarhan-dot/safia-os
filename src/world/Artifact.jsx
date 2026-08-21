@@ -26,14 +26,29 @@ import { playCrack, playImpact, playReassemble } from '../lib/crackAudio'
  * ship it becomes science fiction set dressing, and this world is supposed to
  * be abstract.
  *
- * THE TIMELINE, in station units (0 = hero, 1 = about):
+ * IT NOW HAPPENS AT EVERY SECTION BOUNDARY, NOT ONLY THE FIRST.
  *
- *   0.00-0.16  dormant    nothing drawn
- *   0.16-0.58  approach   a far point, growing slowly, drifting laterally
- *   0.58-0.86  closing    accelerating hard; it becomes the subject
- *   0.86-1.00  eclipse    fills and exceeds the frame; the flash peaks
- *   1.00-1.26  fracture   the shell bursts and the shards blow past the lens
- *   1.26+      gone
+ * One approach in an eight-station journey is a prologue; the other six
+ * handovers were still ordinary scrolling with a camera move. The event is now
+ * the GRAMMAR of the whole page — something closes on the lens, fills the
+ * frame, breaks, and what is behind it is the next section. That is the cut
+ * this page is edited on.
+ *
+ * It is still ONE object on screen at any moment. Seven objects would be a
+ * screensaver; seven objects that each own a single transition, one after the
+ * other, is a film. There is a single instance of everything below — the
+ * silhouette, palette and light are swapped at the handover, while the object
+ * is off-screen and nothing can see it change.
+ *
+ * THE TIMELINE is expressed relative to the boundary it serves, `s = station -
+ * at`, so a boundary at station 4 behaves exactly as the original did at 1:
+ *
+ *   s < -0.84  dormant    nothing drawn        (-0.70 for later boundaries,
+ *   -0.84..-0.42  approach   a far point, growing   which begin only once the
+ *   -0.42..-0.14  closing    accelerating hard      previous one has finished
+ *   -0.14..0.00   eclipse    fills the frame        blowing past the lens)
+ *   0.00..+0.26   fracture   the shell bursts
+ *   > +0.26    gone
  *
  * The acceleration is not linear and must not be. A constant-rate approach
  * reads as a zoom; real approach is dominated by the inverse-square of
@@ -48,6 +63,71 @@ import { playCrack, playImpact, playReassemble } from '../lib/crackAudio'
  */
 
 const SHARDS = 84
+
+/**
+ * THE SEVEN TRANSITS — one per station boundary.
+ *
+ * These are variations on ONE object, not seven different props. The lens, the
+ * shell of shards, the two counter-rotating rings and the internal light are
+ * constant; what changes is the flattening of the lens, how many pieces the
+ * shell is broken into, how large those pieces are, where the rings sit, and
+ * the colour of the light inside. That is enough for each transition to have
+ * its own silhouette while the whole sequence still reads as the same
+ * instrument returning — which is the difference between a motif and a parade.
+ *
+ * `squash` is the whole silhouette argument. At 0.12 the seats collapse onto a
+ * ring and the object reads edge-on as a blade; at 1 they occupy a full sphere.
+ * Anything in between is a lens.
+ *
+ * The palette is NOT new. Each transit bridges the accent of the station it
+ * leaves to the accent of the station it enters — see stations.js — so the
+ * object is the thing that carries the hue handover, rather than the handover
+ * happening invisibly between two parked frames.
+ */
+const TRANSITS = [
+  // hero -> about. The original, unchanged: a lens of glass in two rings.
+  { key: 'lens', squash: 0.34, count: 84, size: 1, ringA: 1.28, ringB: 1.62, tiltB: 0.4,
+    shell: '#13314c', emissive: '#3f9fd0', cold: '#1d5f96', hot: '#9df0ff',
+    ringAColor: '#7fe4ff', ringBColor: '#9d8cff', halo: '#8fe2ff', flash: '#cfeeff', light: '#7fd8ff' },
+  // about -> skills. Fewer, larger plates and a wide outer ring: an aperture.
+  { key: 'aperture', squash: 0.62, count: 58, size: 1.22, ringA: 1.06, ringB: 2.08, tiltB: 0.15,
+    shell: '#16304f', emissive: '#4f8fe8', cold: '#24559b', hot: '#a9d8ff',
+    ringAColor: '#6fb8ff', ringBColor: '#a68cff', halo: '#8fc8ff', flash: '#d6e8ff', light: '#6fb0ff' },
+  // skills -> experience. Nearly flat and finely divided — a disc read edge-on,
+  // and the hinge where the journey's cyan finally gives way to crimson.
+  { key: 'disc', squash: 0.18, count: 84, size: 0.92, ringA: 1.52, ringB: 1.88, tiltB: 0.9,
+    shell: '#241a44', emissive: '#8f6bf0', cold: '#4a2f8e', hot: '#d8b4ff',
+    ringAColor: '#b08cff', ringBColor: '#ff6f86', halo: '#b48cff', flash: '#e4d8ff', light: '#9d6bf0' },
+  // experience -> projects. Massive and coarsely broken: fewer, bigger pieces
+  // read as weight, and this is the heaviest moment in the journey.
+  { key: 'monolith', squash: 0.95, count: 34, size: 1.55, ringA: 1.44, ringB: 1.74, tiltB: 0.62,
+    shell: '#3d0f1c', emissive: '#d4304f', cold: '#7a1228', hot: '#ff9aa8',
+    ringAColor: '#ff5a72', ringBColor: '#ff8a5c', halo: '#ff7a8c', flash: '#ffd8dc', light: '#ff3d5a' },
+  // projects -> ai lab. Small dense fragments on a near-sphere: a cluster of
+  // points rather than a solid, which is the closest this vocabulary gets to
+  // saying "model" without drawing a brain.
+  { key: 'cluster', squash: 0.78, count: 84, size: 0.66, ringA: 1.18, ringB: 2.2, tiltB: 0.28,
+    shell: '#43121c', emissive: '#ff4d5f', cold: '#8c1a2c', hot: '#ffb0a4',
+    ringAColor: '#ff6a5c', ringBColor: '#ff9a6a', halo: '#ff8a72', flash: '#ffe0d4', light: '#ff5a4c' },
+  // ai lab -> achievements. Collapsed onto its ring: an ember seen through its
+  // own edge.
+  { key: 'ember', squash: 0.12, count: 72, size: 1.05, ringA: 1.62, ringB: 1.96, tiltB: 1.1,
+    shell: '#4a1a12', emissive: '#ff6a3c', cold: '#93341a', hot: '#ffc79a',
+    ringAColor: '#ff8a4c', ringBColor: '#ffb06a', halo: '#ff9a5c', flash: '#ffe6cc', light: '#ff6a3c' },
+  // achievements -> contact. Closed back into a seed, rings pulled tight: the
+  // journey arriving somewhere rather than opening again.
+  { key: 'seed', squash: 0.86, count: 48, size: 1.1, ringA: 1.0, ringB: 1.3, tiltB: 0.5,
+    shell: '#40101f', emissive: '#ff2d4d', cold: '#82122e', hot: '#ffa8b6',
+    ringAColor: '#ff4d68', ringBColor: '#ff7a8c', halo: '#ff6a80', flash: '#ffd4dc', light: '#ff2d4d' },
+]
+
+/** How far before its boundary a transit begins.
+ *
+ *  The first one has the whole opening to itself and keeps the original, longer
+ *  run-up. Every later one has to start AFTER its predecessor has finished
+ *  blowing past the lens at +0.26, or two objects share the frame and the shot
+ *  loses its subject. -0.70 is the first value that clears it. */
+const startFor = (at) => (at === 1 ? -0.84 : -0.7)
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v)
 const span = (v, a, b) => clamp01((v - a) / (b - a))
@@ -156,6 +236,8 @@ export default function Artifact({ reducedMotion = false }) {
   const lastFracture = useRef(0)
   const crackCooldown = useRef(0)
   const impactFired = useRef(false)
+  // Which transit is currently loaded into the single instance below.
+  const formRef = useRef(-1)
 
   /**
    * Shard seats, arranged on a LENS rather than a sphere.
@@ -164,37 +246,49 @@ export default function Artifact({ reducedMotion = false }) {
    * edge-on and a ring seen face-on. That single choice is most of what stops
    * it reading as a ball of debris.
    */
-  const shards = useMemo(() => {
-    const out = []
-    for (let i = 0; i < SHARDS; i++) {
-      // Fibonacci distribution, then squashed. Even coverage without the
-      // pole-clustering a naive lat/long loop produces.
-      const t = (i + 0.5) / SHARDS
-      const y = 1 - 2 * t
-      const rad = Math.sqrt(Math.max(0, 1 - y * y))
-      const theta = i * 2.399963
-      const squash = 0.34
+  const shardSets = useMemo(
+    () =>
+      TRANSITS.map((form) => {
+        const out = []
+        for (let i = 0; i < SHARDS; i++) {
+          // Fibonacci distribution, then squashed. Even coverage without the
+          // pole-clustering a naive lat/long loop produces.
+          const t = (i + 0.5) / SHARDS
+          const y = 1 - 2 * t
+          const rad = Math.sqrt(Math.max(0, 1 - y * y))
+          const theta = i * 2.399963
 
-      const seat = new THREE.Vector3(Math.cos(theta) * rad, y * squash, Math.sin(theta) * rad)
-      // Push out along the lens normal so seats sit on the surface.
-      const normal = seat.clone().normalize()
+          const seat = new THREE.Vector3(
+            Math.cos(theta) * rad,
+            y * form.squash,
+            Math.sin(theta) * rad
+          )
+          // Push out along the lens normal so seats sit on the surface.
+          const normal = seat.clone().normalize()
 
-      out.push({
-        seat,
-        normal,
-        // Where the shard flies to when the shell breaks. Outward and
-        // forward — toward the camera — so the burst comes at the viewer.
-        burst: normal
-          .clone()
-          .multiplyScalar(3.2 + Math.random() * 5.5)
-          .add(new THREE.Vector3(0, 0, 2.2 + Math.random() * 3.5)),
-        size: 0.07 + Math.pow(Math.random(), 1.7) * 0.1,
-        spin: (Math.random() - 0.5) * 3.4,
-        seed: Math.random(),
-      })
-    }
-    return out
-  }, [])
+          out.push({
+            seat,
+            normal,
+            // Where the shard flies to when the shell breaks. Outward and
+            // forward — toward the camera — so the burst comes at the viewer.
+            burst: normal
+              .clone()
+              .multiplyScalar(3.2 + Math.random() * 5.5)
+              .add(new THREE.Vector3(0, 0, 2.2 + Math.random() * 3.5)),
+            size: (0.07 + Math.pow(Math.random(), 1.7) * 0.1) * form.size,
+            spin: (Math.random() - 0.5) * 3.4,
+            seed: Math.random(),
+            // Beyond the form's count the seat still exists but is scaled to
+            // nothing. Rebuilding the instance buffer at a handover would
+            // stall the frame the cut happens on, which is the one frame that
+            // cannot stall.
+            used: i < form.count,
+          })
+        }
+        return out
+      }),
+    []
+  )
 
   const coreUniforms = useMemo(
     () => ({
@@ -224,8 +318,20 @@ export default function Artifact({ reducedMotion = false }) {
     const { station, time, energy } = scrollState()
     const dt = Math.min(0.05, delta)
 
+    /* ---- which boundary owns this frame -------------------------------- */
+    // The previous transit is still blowing past the lens until +0.26, so the
+    // next one cannot claim the frame before +0.3. Handing over on the nearest
+    // integer instead would either cut the fracture short or start the next
+    // approach halfway down its run-up.
+    const prev = Math.floor(station)
+    const at = Math.max(1, Math.min(TRANSITS.length, station - prev < 0.3 ? prev : prev + 1))
+    const start = startFor(at)
+    // Everything below is expressed relative to the boundary, so a transit at
+    // station 5 behaves exactly as the verified one at station 1.
+    const s = station - at
+
     /* ---- presence ------------------------------------------------------ */
-    const live = station > 0.16 && station < 1.3
+    const live = s > start && s < 0.3
     if (!live) {
       if (g.visible) {
         g.visible = false
@@ -233,6 +339,7 @@ export default function Artifact({ reducedMotion = false }) {
         artifactState.flash = 0
         artifactState.fracture = 0
         artifactState.dominance = 0
+        artifactState.transit = 0
       }
       if (flashRef.current) flashRef.current.visible = false
       impactFired.current = false
@@ -240,18 +347,46 @@ export default function Artifact({ reducedMotion = false }) {
     }
     g.visible = true
 
+    /* ---- form handover, only ever while off-screen ---------------------- */
+    // Swapping silhouette and palette costs a handful of property writes and
+    // happens on the single frame a transit becomes live — at which point it is
+    // 300 units away and sub-pixel. Nothing on screen can see it change, which
+    // is why one instance can play all seven parts.
+    const form = TRANSITS[at - 1]
+    const shards = shardSets[at - 1]
+    if (formRef.current !== at) {
+      formRef.current = at
+      shell.material.color.set(form.shell)
+      shell.material.emissive.set(form.emissive)
+      coreUniforms.uCold.value.set(form.cold)
+      coreUniforms.uHot.value.set(form.hot)
+      haloUniforms.uColor.value.set(form.halo)
+      flashUniforms.uColor.value.set(form.flash)
+      if (ringARef.current) {
+        ringARef.current.material.color.set(form.ringAColor)
+        ringARef.current.scale.setScalar(form.ringA / 1.28)
+      }
+      if (ringBRef.current) {
+        ringBRef.current.material.color.set(form.ringBColor)
+        ringBRef.current.scale.setScalar(form.ringB / 1.62)
+        ringBRef.current.rotation.set(Math.PI / 2.35, form.tiltB, 0)
+      }
+      if (lightRef.current) lightRef.current.color.set(form.light)
+    }
+
     // 0..1 across the whole event.
-    const p = span(station, 0.16, 1.26)
+    const p = span(s, start, 0.26)
     artifactState.progress = p
+    artifactState.transit = at
     // Rises through the closing phase and holds through the break, so the rest
     // of the world clears the frame while this is the subject.
-    artifactState.dominance = reducedMotion ? 0 : span(station, 0.58, 0.97)
+    artifactState.dominance = reducedMotion ? 0 : span(s, -0.42, -0.03)
 
     /* ---- distance: inverse-square-ish, not linear ---------------------- */
     // Reduced motion parks it mid-approach and never brings it at the camera.
     // A large object rushing the viewport is exactly the kind of vestibular
     // trigger the preference exists to prevent.
-    const travel = reducedMotion ? 0.42 : span(station, 0.16, 1.0)
+    const travel = reducedMotion ? 0.42 : span(s, start, 0)
     const eased = easeIn(travel)
     const FAR = 300
     const NEAR = 1.35
@@ -259,7 +394,7 @@ export default function Artifact({ reducedMotion = false }) {
 
     // Held off-axis for most of the approach so it does not read as a
     // dead-centre zoom, then pulled to centre as it closes.
-    const centring = easeOut(span(station, 0.55, 0.94))
+    const centring = easeOut(span(s, -0.45, -0.06))
     const offX = (1 - centring) * 26 * Math.cos(station * 1.9 + 0.4)
     const offY = (1 - centring) * 13 * Math.sin(station * 2.4)
 
@@ -272,7 +407,7 @@ export default function Artifact({ reducedMotion = false }) {
 
     // Scale grows with proximity as well as distance shrinking, so the last
     // stretch is genuinely overwhelming rather than merely nearer.
-    const grow = 1 + easeIn(span(station, 0.6, 1.02)) * 5.5
+    const grow = 1 + easeIn(span(s, -0.4, 0.02)) * 5.5
     g.scale.setScalar(grow)
 
     /* ---- fracture ------------------------------------------------------ */
@@ -281,7 +416,7 @@ export default function Artifact({ reducedMotion = false }) {
     const cursorStress = reducedMotion
       ? 0
       : chargedInfluenceAt(g.position.x, g.position.y, g.position.z, 34 + grow * 6)
-    const eclipseBreak = span(station, 0.98, 1.2)
+    const eclipseBreak = span(s, -0.02, 0.2)
     const fracture = clamp01(Math.max(cursorStress * 0.72, eclipseBreak))
     artifactState.fracture = fracture
 
@@ -299,11 +434,11 @@ export default function Artifact({ reducedMotion = false }) {
       playReassemble(lastFracture.current)
       crackCooldown.current = 0.3
     }
-    if (!impactFired.current && station > 0.99) {
+    if (!impactFired.current && s > -0.01) {
       playImpact()
       impactFired.current = true
     }
-    if (station < 0.9) impactFired.current = false
+    if (s < -0.1) impactFired.current = false
     lastFracture.current = fracture
 
     /* ---- shards -------------------------------------------------------- */
@@ -328,19 +463,19 @@ export default function Artifact({ reducedMotion = false }) {
       dummy.position.copy(seatPos)
       const tumble = time * sh.spin * (0.15 + lead + blast * 3)
       dummy.rotation.set(tumble * 0.7, tumble, tumble * 0.4)
-      dummy.scale.setScalar(sh.size * (1 - blast * 0.35))
+      dummy.scale.setScalar(sh.used ? sh.size * (1 - blast * 0.35) : 0)
       dummy.updateMatrix()
       shell.setMatrixAt(i, dummy.matrix)
     }
     shell.instanceMatrix.needsUpdate = true
 
     /* ---- core and rings ------------------------------------------------ */
-    const charge = clamp01(span(station, 0.4, 1.0) + energy * 0.2 + cursorStress * 0.4)
+    const charge = clamp01(span(s, -0.6, 0) + energy * 0.2 + cursorStress * 0.4)
     if (coreMatRef.current) {
       const u = coreMatRef.current.uniforms
       u.uCharge.value = charge
       // The core survives the shell and keeps burning until the very end.
-      u.uOpacity.value = clamp01(1 - span(station, 1.05, 1.24))
+      u.uOpacity.value = clamp01(1 - span(s, 0.05, 0.24))
     }
     if (coreRef.current) {
       coreRef.current.scale.setScalar(0.82 + charge * 0.1 - burstAmount * 0.5)
@@ -348,7 +483,7 @@ export default function Artifact({ reducedMotion = false }) {
     if (ringARef.current) ringARef.current.rotation.z = time * 0.6 + fracture * 3
     if (ringBRef.current) ringBRef.current.rotation.z = -time * 0.42 - fracture * 2.2
     if (lightRef.current) {
-      lightRef.current.intensity = (8 + charge * 40) * clamp01(1 - span(station, 1.05, 1.24))
+      lightRef.current.intensity = (8 + charge * 40) * clamp01(1 - span(s, 0.05, 0.24))
       lightRef.current.distance = 40 + grow * 20
     }
 
@@ -358,7 +493,7 @@ export default function Artifact({ reducedMotion = false }) {
     // apparent size stays roughly constant until the handover.
     if (haloRef.current && haloMatRef.current) {
       const near = span(dist, 26, 150)
-      const amt = clamp01(near) * clamp01(span(station, 0.16, 0.28)) * (0.8 + charge * 0.5)
+      const amt = clamp01(near) * clamp01(span(s, start, start + 0.12)) * (0.8 + charge * 0.5)
       haloMatRef.current.uniforms.uAmount.value = amt
       haloRef.current.visible = amt > 0.004
       if (haloRef.current.visible) {
@@ -377,7 +512,7 @@ export default function Artifact({ reducedMotion = false }) {
     // being a cut and start being an obstruction, with the page's text
     // unreadable underneath it the whole time. Tightened to a fast rise and a
     // quick fall so it reads as an exposure blowing out and recovering.
-    const flash = clamp01(span(station, 0.95, 1.01)) * (1 - span(station, 1.02, 1.11))
+    const flash = clamp01(span(s, -0.05, 0.01)) * (1 - span(s, 0.02, 0.11))
     artifactState.flash = reducedMotion ? 0 : flash
 
     const fq = flashRef.current
