@@ -77,3 +77,45 @@ export function timelineAt(station, { reducedMotion = false } = {}) {
 
   return { at, s, start, live: true, p, dominance, travel, dist, centring, grow, eclipseBreak, flash, charge }
 }
+
+/**
+ * THE SHOCKWAVE A TRANSIT THROWS OFF WHEN IT BREAKS.
+ *
+ * The cut already had a flash — an exposure blowing out and recovering. What
+ * it did not have was a consequence: the shell came apart and the space around
+ * it was unaffected, which is what made the break read as an effect played over
+ * the frame rather than as something happening IN it. A blast displaces the
+ * medium it happens in. This is that displacement.
+ *
+ * IT IS DELIBERATELY NOT A LOOP, AND NOT DECORATIVE. It exists for exactly the
+ * 0.26 stations after a boundary, it is emitted by the fracture, and it is gone.
+ * Nothing else in the journey produces one.
+ *
+ * THE EXPANSION IS SEDOV-LIKE, NOT LINEAR. A blast front in a medium goes out
+ * fast and decelerates as it sweeps up mass — radius grows roughly as a
+ * fractional power of time, not proportionally to it. A linear ring reads as a
+ * scaling circle; a decelerating one reads as energy dissipating, which is the
+ * whole difference between a shape and an event.
+ *
+ * Its ENERGY falls faster than its radius grows, so the ring is violent at the
+ * moment of the break and essentially gone by the time it reaches the corners.
+ * That ordering is what keeps it from becoming a full-screen wash.
+ *
+ * Returns radius in 0..1 of half-frame-height, and 0..1 strength.
+ */
+export function shockwaveAt(station, { reducedMotion = false } = {}) {
+  if (reducedMotion) return { radius: 0, strength: 0, live: false }
+  const { at, s } = timelineAt(station, { reducedMotion })
+  // Emitted at the break — the boundary itself — and only outward from there.
+  const t = span(s, 0, 0.26)
+  if (t <= 0 || t >= 1) return { at, radius: 0, strength: 0, live: false }
+  // Decelerating front.
+  const radius = Math.pow(t, 0.55) * 1.45
+  // Energy dissipates as the front sweeps outward, and much faster than it
+  // expands. The exponent was 2.2, which left the ring still carrying a fifth
+  // of its energy as it crossed the frame edge — visible as a bright rim
+  // sliding off all four corners, i.e. exactly the full-screen wash the note
+  // above says this must not become. `check-transits.mjs` asserts the bound.
+  const strength = Math.pow(1 - t, 3.2)
+  return { at, radius, strength, live: true }
+}

@@ -8,7 +8,7 @@
  *
  *   node scripts/check-transits.mjs
  */
-import { timelineAt, TRANSIT_COUNT, startFor } from '../src/world/transitTimeline.js'
+import { timelineAt, TRANSIT_COUNT, startFor, shockwaveAt } from '../src/world/transitTimeline.js'
 
 const STEP = 0.002
 const FROM = 0
@@ -104,6 +104,72 @@ for (let st = FROM; st <= TO; st += STEP) {
 if (rmFlash > 0) fail(`reduced motion still flashes (${rmFlash})`)
 else if (timelineAt(1, { reducedMotion: true }).dist < 150) fail('reduced motion still brings the object at the camera')
 else ok('reduced motion parks it mid-approach and never flashes')
+
+/* 8. THE SHOCKWAVE. Emitted by the break, expands decelerating, dissipates. */
+{
+  const before = failures
+
+  // One wave per boundary, and only after the break.
+  for (let at = 1; at <= TRANSIT_COUNT; at++) {
+    if (shockwaveAt(at - 0.02).live) fail(`boundary ${at} throws a shockwave BEFORE it breaks`)
+    if (shockwaveAt(at + 0.3).live) fail(`boundary ${at} shockwave outlives its transit`)
+  }
+  if (failures === before) ok('every shockwave is emitted at the break and gone by +0.26')
+
+  // Radius rises monotonically; energy falls monotonically. A wave that
+  // brightens as it expands is a scaling graphic, not a blast.
+  let radBad = 0
+  let strBad = 0
+  for (let at = 1; at <= TRANSIT_COUNT; at++) {
+    let lastR = -1
+    let lastS = Infinity
+    for (let o = 0.002; o < 0.258; o += 0.002) {
+      const w = shockwaveAt(at + o)
+      if (!w.live) continue
+      if (w.radius < lastR - 1e-9) radBad++
+      if (w.strength > lastS + 1e-9) strBad++
+      lastR = w.radius
+      lastS = w.strength
+    }
+  }
+  if (radBad) fail(`shockwave radius is non-monotonic on ${radBad} samples`)
+  else if (strBad) fail(`shockwave energy rises on ${strBad} samples`)
+  else ok('shockwave expands monotonically while its energy only falls')
+
+  // Deceleration: the first half of the travel must cover more ground than the
+  // second. That is the whole difference between a blast front and a circle
+  // being scaled up.
+  // Both samples must be INSIDE the live window. 1.26 is one step past its end
+  // and returns radius 0, so the original comparison was against a dead frame
+  // and passed for the wrong reason — it reported a negative second half.
+  const first = shockwaveAt(1.12).radius - shockwaveAt(1.005).radius
+  const second = shockwaveAt(1.25).radius - shockwaveAt(1.12).radius
+  if (!(first > second * 1.4)) {
+    fail(`shockwave expansion is not decelerating (first ${first.toFixed(3)}, second ${second.toFixed(3)})`)
+  } else {
+    ok(`shockwave decelerates (first half ${first.toFixed(2)} vs second ${second.toFixed(2)})`)
+  }
+
+  // Energy must be spent before the front reaches the corners, or it stops
+  // being a passing ring and becomes a full-screen wash.
+  let worstLate = 0
+  for (let at = 1; at <= TRANSIT_COUNT; at++) {
+    for (let o = 0.002; o < 0.258; o += 0.002) {
+      const w = shockwaveAt(at + o)
+      if (w.live && w.radius > 1.0) worstLate = Math.max(worstLate, w.strength)
+    }
+  }
+  if (worstLate > 0.2) fail(`shockwave still carries ${worstLate.toFixed(2)} energy past the frame edge`)
+  else ok(`shockwave is spent by the frame edge (max ${worstLate.toFixed(3)})`)
+
+  // Reduced motion gets none of it.
+  let rmWave = 0
+  for (let st = FROM; st <= TO; st += STEP) {
+    if (shockwaveAt(st, { reducedMotion: true }).live) rmWave++
+  }
+  if (rmWave) fail(`reduced motion still emits ${rmWave} shockwave samples`)
+  else ok('reduced motion emits no shockwave')
+}
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nAll transit invariants hold.')
 process.exit(failures ? 1 : 0)

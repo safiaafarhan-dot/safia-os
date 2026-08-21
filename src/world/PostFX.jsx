@@ -5,6 +5,8 @@ import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { scrollState } from '../state/scrollStore'
 import { sampleMood } from './stations'
 import { blackHoleState } from './blackHoleState'
+import { shockwaveAt } from './transitTimeline'
+import { STATIONS } from './stations'
 
 /**
  * The photographic grade.
@@ -91,6 +93,14 @@ const finalFragment = /* glsl */ `
   uniform float uTime;
   uniform float uEnergy;
   uniform vec3  uTint;
+  // The blast front thrown off by a transit breaking. Radius is in units of
+  // half-frame-height; strength is its remaining energy. See shockwaveAt().
+  uniform float uShockRadius;
+  uniform float uShockStrength;
+  uniform vec3  uShockTint;
+  // SIGNED radial smear under travel. Sign is the scroll direction, so
+  // reversing streaks the other way.
+  uniform float uStreak;
 
   void main() {
     vec2 centre = vUv - 0.5;
@@ -126,15 +136,75 @@ const finalFragment = /* glsl */ `
       lensUv = vUv - dir * pull * dist;
     }
 
+    // THE SHOCKWAVE.
+    //
+    // A ring of radial displacement expanding from the centre of frame, which
+    // is where the transit that emitted it just broke. It displaces what is
+    // ALREADY RENDERED — the same reason the black hole's lensing lives here
+    // rather than on the object — so the whole world bulges as the front
+    // passes through it rather than a ring being drawn on top of it.
+    //
+    // The front WIDENS as it expands. A constant-width ring reads as a
+    // scaling graphic; a dispersing one reads as a pressure wave losing
+    // coherence, which is what one actually does.
+    float shockRing = 0.0;
+    if (uShockStrength > 0.001) {
+      vec2 sd = centre;
+      sd.x *= uAspect;
+      float sr = length(sd);
+      float width = 0.04 + uShockRadius * 0.075;
+      float band = (sr - uShockRadius * 0.5) / width;
+      shockRing = exp(-band * band);
+      vec2 sdir = sr > 0.0001 ? normalize(vec2(sd.x / uAspect, sd.y)) : vec2(0.0);
+      // Sampling INWARD makes the image appear pushed outward at the front.
+      lensUv -= sdir * shockRing * uShockStrength * 0.045;
+    }
+
     // Chromatic aberration, scaled by distance from centre so the middle of
-    // the frame — where the text lives — stays perfectly sharp.
-    vec2 offset = centre * uAberration * r;
+    // the frame — where the text lives — stays perfectly sharp. The blast
+    // front bends light as it passes, so it splits harder there.
+    vec2 offset = centre * (uAberration + shockRing * uShockStrength * 0.004) * r;
     vec3 col;
     col.r = texture2D(tScene, lensUv + offset).r;
     col.g = texture2D(tScene, lensUv).g;
     col.b = texture2D(tScene, lensUv - offset).b;
 
+    // LIGHT STREAKS UNDER TRAVEL.
+    //
+    // A short radial smear whose length and direction come from the signed
+    // scroll flow, so moving fast draws every point source out into a streak
+    // and reversing draws it the other way. This is the optical consequence of
+    // the speed the aberration above is already responding to — the two are
+    // the same lens under the same stress, which is why it belongs here rather
+    // than in a trail system bolted to the particles.
+    //
+    // The branch is on a uniform, so it costs nothing at rest — the whole
+    // wavefront takes the same path.
+    //
+    // Safe for legibility by construction: the canvas holds only the world.
+    // Every word on the page is DOM painted on top of it, so smearing this
+    // buffer cannot touch a glyph, and softening what sits behind the reading
+    // column raises contrast rather than lowering it.
+    if (abs(uStreak) > 0.002) {
+      vec3 acc = col;
+      float total = 1.0;
+      for (int i = 1; i <= 6; i++) {
+        float k = float(i) / 6.0;
+        // Weighted toward the current pixel so the image stays anchored and
+        // only trails; a flat average reads as the whole frame going soft.
+        float w = 1.0 - k * 0.82;
+        acc += texture2D(tScene, lensUv - centre * uStreak * 0.075 * k).rgb * w;
+        total += w;
+      }
+      col = acc / total;
+    }
+
     col += texture2D(tBloom, lensUv).rgb * uBloom;
+
+    // The front itself is luminous — compressed medium glowing as it is swept.
+    // Additive and thin, so it reads as the edge of the blast rather than as a
+    // drawn circle.
+    col += uShockTint * shockRing * uShockStrength * 0.5;
 
     // NOTE: the shadow is NOT re-imposed here any more.
     //
@@ -181,6 +251,9 @@ const BLOOM_DIV = 6
  * itself is stale - only the glow lags by up to one frame.
  */
 const BLOOM_EVERY = 2
+
+/** Scratch colour for the blast front. Module scope so no allocation per frame. */
+const shockColour = new THREE.Color()
 
 /**
  * Mounted only on the tiers that can carry it — see WorldCanvas. On weak
@@ -246,6 +319,10 @@ export default function PostFX({ reducedMotion = false }) {
         uTime: { value: 0 },
         uEnergy: { value: 0 },
         uTint: { value: new THREE.Color('#ff3350') },
+        uShockRadius: { value: 0 },
+        uShockStrength: { value: 0 },
+        uShockTint: { value: new THREE.Color('#bfe6ff') },
+        uStreak: { value: 0 },
       },
       depthTest: false,
       depthWrite: false,
@@ -253,6 +330,32 @@ export default function PostFX({ reducedMotion = false }) {
 
     return { rtScene, rtA, rtB, brightMat, blurMat, finalMat, quad: new FullScreenQuad() }
   }, [])
+
+  /**
+   * Diagnostic handle, matching `__world`, `__artifact` and `__safeZone`.
+   *
+   * The grade's materials live on a FullScreenQuad, not in the scene graph, so
+   * nothing that walks `scene` can see them — which makes every value in this
+   * pass invisible to exactly the kind of probe used to verify the rest of the
+   * world. The shockwave and the streak are both driven from world state and
+   * both need to be checkable without trying to catch them in a screenshot.
+   *
+   * IT IS PUBLISHED FROM AN EFFECT, NOT FROM THE useMemo.
+   *
+   * Assigning it inside the memo looked equivalent and was not: in development
+   * the component renders more than once (StrictMode, and every HMR update),
+   * each render builds a memo, and only one of those instances survives to run
+   * the frame loop. The handle therefore pointed at a DISCARDED material while
+   * the live one updated normally — so every uniform read through it was
+   * frozen at its initial value, and the effects looked completely dead while
+   * working perfectly. An effect only runs for the committed instance.
+   *
+   * DEV only; nothing in the app reads this.
+   */
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === 'undefined') return
+    window.__postfx = fx.finalMat.uniforms
+  }, [fx])
 
   useEffect(() => {
     const dpr = viewport.dpr || 1
@@ -343,6 +446,32 @@ export default function PostFX({ reducedMotion = false }) {
     const targetAb = reducedMotion ? 0 : Math.min(0.0035, Math.abs(s.velocity) * 0.0016) + 0.0005
     u.uAberration.value += (targetAb - u.uAberration.value) * Math.min(1, delta * 6)
     u.uGrain.value = reducedMotion ? 0.018 : 0.03
+
+    // THE BLAST FRONT FROM THE TRANSIT THAT JUST BROKE.
+    //
+    // Read straight from the same pure timeline the transit itself runs on —
+    // see shockwaveAt() — so the wave cannot drift out of sync with the event
+    // that emitted it, and so its envelope is verifiable headlessly rather than
+    // by trying to catch it in a screenshot.
+    const wave = shockwaveAt(s.station, { reducedMotion })
+    u.uShockRadius.value = wave.radius
+    u.uShockStrength.value = wave.strength
+    if (wave.live) {
+      // The front carries the colour of the station it is arriving INTO, so
+      // the wave is part of the palette handover rather than a white flash
+      // sitting on top of it.
+      const idx = Math.max(0, Math.min(STATIONS.length - 1, wave.at))
+      shockColour.set(STATIONS[idx].mood.accent)
+      u.uShockTint.value.lerp(shockColour, 0.25)
+    }
+
+    // SPEED SMEARS THE OPTICS. Signed, so reversing streaks the other way.
+    // Clamped hard: past about 0.1 the frame stops reading as a fast pan and
+    // starts reading as a dropped frame.
+    const targetStreak = reducedMotion
+      ? 0
+      : Math.max(-0.11, Math.min(0.11, s.flow * 0.16))
+    u.uStreak.value += (targetStreak - u.uStreak.value) * Math.min(1, delta * 7)
 
     // The black hole publishes where it is; the warp is applied here.
     u.uBH.value.set(blackHoleState.x, blackHoleState.y)
