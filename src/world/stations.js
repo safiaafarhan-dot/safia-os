@@ -27,6 +27,19 @@
 
 export const STATION_SPACING = 44
 
+/**
+ * How far past the final station the journey is allowed to run.
+ *
+ * Every boundary's transit runs to `at + 0.26`. The last station has no
+ * journey after it, so without a tail the scroll mapping clamps there and the
+ * world parks in the MIDDLE of the final transit — a held white flash with the
+ * object against the lens, sitting on top of the contact form. The tail spends
+ * the document left below the final anchor on letting that event finish.
+ *
+ * `scripts/check-transits.mjs` asserts the parked end state is clear of it.
+ */
+export const STATION_TAIL = 0.45
+
 const station = (i, id, { x = 0, y = 0, lookX = 0, lookY = 0, mood }) => ({
   id,
   index: i,

@@ -5,6 +5,7 @@ import AdaptiveDpr from './AdaptiveDpr'
 import Artifact from './Artifact'
 import Atmosphere from './Atmosphere'
 import Beacon from './Beacon'
+import IdentityForm from './IdentityForm'
 import Sparks from './Sparks'
 import Crystals from './Crystals'
 import CursorField from './CursorField'
@@ -37,13 +38,13 @@ const flag = (name) =>
  * resolution further if the machine still can't hold frame rate.
  */
 const TIERS = {
-  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, blackHole: true, bhDebris: 900, galaxy: 5000, nebulae: 6, singularities: true, foreground: 14, beltRocks: 220, clusterStars: 900, shardCount: 90, floaters: 260, cursorMotes: 300, dustVeil: 700, crystals: 16, energyTrails: 100, neurons: 92, sparks: 300, forms: true, dpr: [1, 1.75] },
-  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, blackHole: true, bhDebris: 450, galaxy: 2400, nebulae: 4, singularities: true, foreground: 9, beltRocks: 120, clusterStars: 450, shardCount: 48, floaters: 140, cursorMotes: 170, dustVeil: 360, crystals: 10, energyTrails: 60, neurons: 58, sparks: 170, forms: true, dpr: [1, 1.4] },
+  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, blackHole: true, bhDebris: 900, galaxy: 5000, nebulae: 6, singularities: true, foreground: 14, beltRocks: 220, clusterStars: 900, shardCount: 90, floaters: 260, cursorMotes: 300, dustVeil: 700, crystals: 16, energyTrails: 100, neurons: 92, sparks: 300, identity: 1600, forms: true, dpr: [1, 1.75] },
+  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, blackHole: true, bhDebris: 450, galaxy: 2400, nebulae: 4, singularities: true, foreground: 9, beltRocks: 120, clusterStars: 450, shardCount: 48, floaters: 140, cursorMotes: 170, dustVeil: 360, crystals: 10, energyTrails: 60, neurons: 58, sparks: 170, identity: 900, forms: true, dpr: [1, 1.4] },
   // The forms stay on at the low tier even though almost everything else is
   // cut. They are four draw calls, and they are the only thing standing
   // between a phone and an empty gradient — exactly the "overwhelmingly black
   // home page" the brief rules out.
-  low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, grade: false, blackHole: true, bhDebris: 260, galaxy: 900, nebulae: 3, singularities: false, foreground: 5, beltRocks: 50, clusterStars: 180, shardCount: 20, floaters: 60, cursorMotes: 80, dustVeil: 150, crystals: 6, energyTrails: 30, neurons: 34, sparks: 90, forms: true, dpr: 1 },
+  low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, grade: false, blackHole: true, bhDebris: 260, galaxy: 900, nebulae: 3, singularities: false, foreground: 5, beltRocks: 50, clusterStars: 180, shardCount: 20, floaters: 60, cursorMotes: 80, dustVeil: 150, crystals: 6, energyTrails: 30, neurons: 34, sparks: 90, identity: 420, forms: true, dpr: 1 },
 }
 
 const pickTier = () => {
@@ -161,6 +162,13 @@ const WorldCanvas = ({ reducedMotion = false }) => {
           lateral placement is derived from the measured reading column, so it
           cannot end up behind the type on any layout. See Beacon.jsx. */}
       <Beacon reducedMotion={reducedMotion} />
+
+      {/* THE UNIVERSE BUILDS THE NAME. Particles scattered through the volume
+          are drawn in, overshoot their seats and settle into the shape of the
+          wordmark — anchored to the real DOM box, so the crisp type resolves
+          inside the form they just built. They let go and escape as the
+          visitor scrolls on. See IdentityForm.jsx. */}
+      <IdentityForm count={effectiveTier.identity} reducedMotion={reducedMotion} />
 
       {/* THE ABSTRACT DIMENSION. Four large translucent structures that replace
           the ringed planet the opening used to be built around — an incomplete

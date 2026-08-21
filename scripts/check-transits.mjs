@@ -9,6 +9,7 @@
  *   node scripts/check-transits.mjs
  */
 import { timelineAt, TRANSIT_COUNT, startFor, shockwaveAt } from '../src/world/transitTimeline.js'
+import { STATION_TAIL, STATIONS } from '../src/world/stations.js'
 
 const STEP = 0.002
 const FROM = 0
@@ -169,6 +170,36 @@ else ok('reduced motion parks it mid-approach and never flashes')
   }
   if (rmWave) fail(`reduced motion still emits ${rmWave} shockwave samples`)
   else ok('reduced motion emits no shockwave')
+}
+
+/* 9. THE JOURNEY MUST END SOMEWHERE CLEAR OF ITS OWN LAST CUT. */
+{
+  // Every boundary's event runs to +0.26. The last station has no journey
+  // after it, so the scroll mapping has to carry PAST it or the world parks in
+  // the middle of the final transit. It did: at exactly station 7 the timeline
+  // sat at flash 0.833, dominance 1.0, dist 1.35 — a held white blowout with
+  // the object against the lens, directly on top of the contact form. That is
+  // not a grading problem, it is the section being underneath the cut that was
+  // supposed to deliver it, and no amount of bloom tuning would have found it.
+  const end = (STATIONS.length - 1) + STATION_TAIL
+  const t = timelineAt(end)
+  if (t.live) fail(`journey parks INSIDE transit ${t.at} (s=${t.s.toFixed(3)})`)
+  else ok(`journey parks clear of the last transit (station ${end}, s=${t.s.toFixed(2)})`)
+
+  if (t.flash > 0.001) fail(`journey parks on a flash of ${t.flash.toFixed(3)}`)
+  else ok('journey parks with no flash')
+
+  if (t.dominance > 0.001) fail(`journey parks with the artifact owning the frame (${t.dominance.toFixed(2)})`)
+  else ok('journey parks with the frame handed back to the world')
+
+  if (shockwaveAt(end).live) fail('journey parks inside a shockwave')
+  else ok('journey parks clear of the shockwave')
+
+  // And the tail must be long enough to clear the event with room to spare,
+  // not merely to scrape past its final frame.
+  const margin = STATION_TAIL - 0.26
+  if (margin < 0.1) fail(`station tail leaves only ${margin.toFixed(3)} of settle after the cut`)
+  else ok(`tail leaves ${margin.toFixed(2)} stations of settle after the cut`)
 }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nAll transit invariants hold.')

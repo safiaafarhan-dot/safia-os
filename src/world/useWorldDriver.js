@@ -3,7 +3,7 @@ import { setScrollState, useScrollStore } from '../state/scrollStore'
 import { useWorldStore } from '../state/worldStore'
 import { cursorField } from './cursorFieldState'
 import { setAmbience } from '../lib/ambience'
-import { STATION_IDS, STATIONS } from './stations'
+import { STATION_IDS, STATION_TAIL, STATIONS } from './stations'
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
 const lerp = (a, b, t) => a + (b - a) * t
@@ -79,13 +79,49 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
       })
     }
 
+    /**
+     * HOW FAR PAST THE LAST STATION THE JOURNEY IS ALLOWED TO RUN.
+     *
+     * This is not decoration — without it the final transit never finishes.
+     *
+     * Every boundary's event runs from `at - 0.7` to `at + 0.26`. For the first
+     * seven that is fine, because there is more journey after them and the
+     * visitor scrolls straight through. The eighth is the last station, and the
+     * mapping used to CLAMP there — so arriving at Contact parked the world at
+     * exactly station 7.0, which is the middle of transit 7:
+     *
+     *     flash      0.833   a near-peak white blowout, held forever
+     *     dominance  1.000   every other layer dimmed out of the frame
+     *     dist       1.35    the object pressed against the lens
+     *
+     * The contact form therefore sat permanently behind a full-screen flash
+     * with an object filling the viewport, which is why its detail could not be
+     * seen. It was not a bloom problem; the section was underneath the cut that
+     * was supposed to deliver it.
+     *
+     * The scroll room to fix it already existed and was being thrown away — the
+     * lower half of Contact plus the whole footer sit below the last anchor.
+     * Mapping that remainder onto a tail past station 7 lets the transit play
+     * out and land, and leaves the visitor parked in the quiet arrival the
+     * ending is supposed to be. The value lives in stations.js so the headless
+     * check asserts the same number the driver uses.
+     */
+
     /** Fractional station index for the current scroll position. */
     const stationAt = (focus) => {
       const valid = anchors.map((a, i) => (a == null ? null : { a, i })).filter(Boolean)
       if (valid.length === 0) return 0
       if (focus <= valid[0].a) return valid[0].i
       const last = valid[valid.length - 1]
-      if (focus >= last.a) return last.i
+      if (focus >= last.a) {
+        // Spend whatever document is left below the final anchor on finishing
+        // the last transit, rather than clamping on top of it.
+        const doc = document.documentElement
+        const bottom = doc.scrollHeight - window.innerHeight / 2
+        const room = bottom - last.a
+        if (room <= 1) return last.i + STATION_TAIL
+        return last.i + Math.min(1, (focus - last.a) / room) * STATION_TAIL
+      }
 
       for (let k = 0; k < valid.length - 1; k++) {
         const cur = valid[k]
