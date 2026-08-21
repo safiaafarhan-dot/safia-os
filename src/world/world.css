@@ -227,3 +227,29 @@
   position: relative;
   z-index: 1;
 }
+
+/*
+ * ...except a child that positions ITSELF.
+ *
+ * `.station > *` and Tailwind's `.absolute` carry the same specificity, and
+ * this file loads last, so the bare rule above silently won every one of those
+ * contests. It cost two things in the hero and neither announced itself: the
+ * `absolute inset-0` lighting layer collapsed to 0x0 — taking the whole scrim
+ * with it, including the `md:hidden` gradient that is the ONLY thing making
+ * hero copy legible over the world on a phone — and the scroll cue's `left-1/2`
+ * stopped meaning "centre" and started meaning "shift half a section right",
+ * which at 390px puts it clean off the screen.
+ *
+ * Kept as an explicit escape hatch rather than by lowering the rule above into
+ * `:where()`, because the veil ordering is the reason that rule exists and it
+ * should stay the loud, obvious default.
+ */
+.station > .absolute {
+  position: absolute;
+}
+.station > .fixed {
+  position: fixed;
+}
+.station > .sticky {
+  position: sticky;
+}

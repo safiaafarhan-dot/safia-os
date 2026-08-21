@@ -101,8 +101,25 @@ const EclipseFlash = () => {
         // Cool white with a cyan core, matching the artifact's own light —
         // a neutral white flash would read as a page transition rather than
         // as this object's light.
+        //
+        // ELLIPSE, NOT CIRCLE, and that is the difference between a flash and
+        // nothing at all on a phone. A circle is sized off the box's diagonal,
+        // so on a 390x844 portrait viewport the bright core lands as a ~150px
+        // disc floating in the middle of the screen with the top and bottom
+        // thirds completely untouched — at full strength it barely registered.
+        // The same circle on a landscape desktop covers the frame, which is why
+        // this read as correct when it was only ever correct at one aspect. An
+        // ellipse resolves its radii per axis, so the light fills the frame on
+        // both — the same rule the 3D quad already follows by sizing itself to
+        // the frustum rather than to a fixed width.
+        //
+        // The falloff is also flatter than it was. The old profile dropped to
+        // three-quarter alpha within a third of the radius, which under the
+        // 0.88 cap composites to a haze — light in the room rather than a lens
+        // blowing out. Holding near-full alpha across most of the frame and
+        // falling off only at the edge is what makes it read as an exposure.
         background:
-          'radial-gradient(circle at 50% 50%, rgba(226,246,255,0.97) 0%, rgba(150,214,255,0.75) 32%, rgba(70,140,220,0.32) 58%, rgba(10,20,40,0) 82%)',
+          'radial-gradient(ellipse at 50% 50%, rgba(226,246,255,0.97) 0%, rgba(205,238,255,0.93) 30%, rgba(150,214,255,0.66) 58%, rgba(70,140,220,0.24) 82%, rgba(10,20,40,0) 100%)',
         willChange: 'opacity',
       }}
     />

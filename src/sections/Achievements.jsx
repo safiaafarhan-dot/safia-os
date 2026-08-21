@@ -43,7 +43,11 @@ const Achievements = () => {
                     href={a.verificationLink}
                     target="_blank"
                     rel="noreferrer"
-                    className="interactive inline-flex items-center gap-2 mt-4 font-mono text-[10px] tracking-[0.25em] text-silver/75 hover:text-crimson-text transition-colors duration-300"
+                    /* Padding cancelled by a negative margin, rather than a
+                       taller link: the hit area reaches 44px for a thumb
+                       without moving the baseline the card's rhythm is set
+                       from. It was 64x15. */
+                    className="interactive inline-flex items-center gap-2 mt-4 py-3.5 -my-3.5 font-mono text-[10px] tracking-[0.25em] text-silver/75 hover:text-crimson-text transition-colors duration-300"
                   >
                     VERIFY
                     <span>→</span>

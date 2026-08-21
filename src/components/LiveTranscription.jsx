@@ -128,7 +128,7 @@ const LiveTranscription = ({ className = '', hint }) => {
             type="button"
             onClick={requestMic}
             disabled={active}
-            className="chip disabled:opacity-45 disabled:cursor-default"
+            className="chip min-h-11 sm:min-h-0 disabled:opacity-45 disabled:cursor-default"
           >
             {active ? 'MIC LIVE' : 'ENABLE MIC'}
           </button>

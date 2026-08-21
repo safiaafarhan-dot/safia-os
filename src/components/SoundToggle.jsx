@@ -18,7 +18,20 @@ import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
  *
  * Deliberately styled as a spatial label rather than a chrome button, to match
  * the mic control, and STACKED ABOVE it rather than beside it — side by side,
- * this button's icon landed on top of the mic's "MIC OFF" label.
+ * this button's icon landed on top of the mic's "MIC OFF" label. That is a
+ * constraint of the LABELLED layout only; once the labels go on mobile the
+ * three controls sit in one row without touching.
+ *
+ * ON A PHONE IT IS NOT A LABEL, IT IS AN ICON. The spatial-label styling works
+ * on a wide screen because the reading column leaves a bottom-left gutter for
+ * it to live in; at 390px there is no gutter, the column is the whole screen,
+ * and the bare label printed straight over the hero's CONNECT WITH ME button —
+ * unreadable in both directions, and stealing taps from the CTA underneath it
+ * because this sits at z-80. Below `sm` the text drops (the aria-label already
+ * carries the meaning), the icon gains a backdrop so it reads against whatever
+ * scrolls past, and it moves to the bottom-right corner that WorldHUD leaves
+ * empty on mobile — the CTAs are full-width, so the corner is the only place
+ * on the screen that is reliably not a control.
  */
 const SoundToggle = () => {
   const reducedMotion = usePrefersReducedMotion()
@@ -53,13 +66,13 @@ const SoundToggle = () => {
       onClick={toggle}
       aria-pressed={on}
       aria-label={on ? 'Disable world audio' : 'Enable world audio'}
-      className="interactive group fixed bottom-[4.75rem] left-6 z-[80] flex items-center gap-2.5 focus-visible:outline-none"
+      className="interactive group fixed bottom-4 right-[6.75rem] left-auto sm:bottom-[4.75rem] sm:left-6 sm:right-auto z-[80] flex items-center gap-2.5 focus-visible:outline-none"
     >
       <span
-        className={`flex h-9 w-9 items-center justify-center rounded-full border transition-colors duration-200 group-focus-visible:ring-2 group-focus-visible:ring-[#7fd8ff] ${
+        className={`flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-full border backdrop-blur-sm transition-colors duration-200 group-focus-visible:ring-2 group-focus-visible:ring-[#7fd8ff] ${
           on
             ? 'border-[#7fd8ff]/60 bg-[#7fd8ff]/12'
-            : 'border-white/12 bg-white/[0.03] group-hover:border-white/25'
+            : 'border-white/12 bg-graphite/80 sm:bg-white/[0.03] group-hover:border-white/25'
         }`}
       >
         {/* Three bars that stand up when sound is on. An icon that changes
@@ -76,7 +89,7 @@ const SoundToggle = () => {
         </svg>
       </span>
       <span
-        className={`font-mono text-[9px] tracking-[0.3em] transition-colors duration-200 ${
+        className={`hidden sm:inline font-mono text-[9px] tracking-[0.3em] transition-colors duration-200 ${
           on ? 'text-[#9de6ff]' : 'text-silver/60 group-hover:text-silver/85'
         }`}
       >

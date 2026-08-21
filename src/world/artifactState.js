@@ -35,3 +35,13 @@ export const artifactState = {
    */
   dominance: 0,
 }
+
+/**
+ * Diagnostic handle. The event is a function of the station float and lasts a
+ * few hundred pixels of scroll, so the only practical way to check a moment in
+ * it is to pin the station and read these numbers — see the `?station=` pin in
+ * useWorldDriver. DEV only; nothing in the app reads this.
+ */
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  window.__artifact = artifactState
+}

@@ -169,7 +169,12 @@ const VoiceControl = () => {
   // Voice is a genuine convenience for some visitors and a privacy concern for
   // others, so the surface stays a single small control until it is opened.
   return (
-    <div className="fixed bottom-6 left-6 z-[80] flex flex-col items-start gap-3">
+    /* Bottom-left on a wide screen, where the reading column leaves a gutter.
+       At phone width the column IS the screen, so this cluster moves to the
+       bottom-right corner WorldHUD vacates on mobile and loses its text — the
+       status label printed over whatever section was scrolling past, and the
+       cluster sat on top of the hero's full-width CTAs. */
+    <div className="fixed bottom-4 right-4 left-auto sm:bottom-6 sm:left-6 sm:right-auto z-[80] flex flex-col items-end sm:items-start gap-3">
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -361,12 +366,32 @@ const VoiceControl = () => {
           </svg>
         </button>
 
+        {/* The panel has to stay reachable on a phone, so the status text
+            becomes a real 44px icon target below `sm` rather than simply
+            disappearing with the rest of the labels. */}
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="interactive font-mono text-[9px] tracking-[0.25em] text-silver/75 hover:text-crimson-text transition-colors"
+          className="interactive grid sm:block place-items-center w-11 h-11 sm:w-auto sm:h-auto rounded-full sm:rounded-none border sm:border-0 border-metal/45 bg-graphite/80 sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none font-mono text-[9px] tracking-[0.25em] text-silver/75 hover:text-crimson-text transition-colors"
           aria-expanded={expanded}
+          aria-label={expanded ? 'Hide voice control panel' : 'Show voice control panel'}
         >
-          {expanded ? 'HIDE' : STATUS_COPY[micState]}
+          <span className="hidden sm:inline">{expanded ? 'HIDE' : STATUS_COPY[micState]}</span>
+          <svg
+            className="sm:hidden"
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d={expanded ? 'M3.5 8.5L7 5l3.5 3.5' : 'M3.5 5.5L7 9l3.5-3.5'}
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
       </div>
     </div>
