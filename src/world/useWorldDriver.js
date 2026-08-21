@@ -231,9 +231,17 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
      * gesture, including while the page is scrolling under it. Passive, so it
      * never blocks or delays that scroll.
      */
+    /** Timestamp of the last deliberate touch. Tilt yields to it. */
+    let lastTouch = 0
+
     const onTouch = (e) => {
       const t = e.touches && e.touches[0]
-      if (t) setPointer(t.clientX, t.clientY)
+      if (t) {
+        setPointer(t.clientX, t.clientY)
+        // Stamped so tilt stands down for a moment after any deliberate touch
+        // — see onOrientation below.
+        lastTouch = performance.now()
+      }
     }
 
     // A finger leaving the glass has no position, unlike a mouse which is
@@ -242,6 +250,72 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
     // permanently disturbed at the last place that was touched.
     const onTouchEnd = () => {
       cursorField.dwell = 0
+      lastTouch = performance.now()
+    }
+
+    /**
+     * TILT PARALLAX ON A PHONE, AND NO PERMISSION PROMPT TO GET IT.
+     *
+     * A phone has no cursor, so the entire pointer-driven half of this world —
+     * the camera's parallax off the rail, the key light tracking the pointer,
+     * the sky's aim — sits at zero for the whole visit unless the visitor is
+     * actively dragging. Device orientation is the natural stand-in: the
+     * handset's own attitude becomes the thing the world leans against, so
+     * simply holding the phone makes the frame alive.
+     *
+     * IT FEEDS THE EXISTING POINTER CHANNEL rather than adding a parallel one.
+     * Everything downstream already knows how to respond to a normalised
+     * pointer, is already smoothed, and is already tuned; a second input path
+     * would be a second set of constants to keep in sync for no gain.
+     *
+     * NO PROMPT, EVER. iOS 13+ gates this behind
+     * `DeviceOrientationEvent.requestPermission()`, which must come from a user
+     * gesture and shows a system dialog. Asking a visitor for motion-sensor
+     * access so a background can wobble is not a trade worth making, and a
+     * dialog on arrival is exactly the kind of thing that gets a site closed.
+     * So: where the API needs permission, this feature simply does not exist;
+     * where it does not, it is on. The fallback is the current behaviour, which
+     * is fine.
+     *
+     * Touch wins while it is happening — a drag is a deliberate act and must
+     * not fight the way the phone happens to be held.
+     */
+    const onOrientation = (e) => {
+      if (e.beta == null || e.gamma == null) return
+      if (performance.now() - lastTouch < 900) return
+      // gamma is left/right tilt, beta front/back. Both clamped to a shallow
+      // range and scaled well under 1: this is a lean, not a steering wheel,
+      // and a visitor should never have to hold their phone at an angle to see
+      // the page properly.
+      const gx = clamp(e.gamma / 34, -1, 1)
+      // Referenced to a natural reading angle rather than to flat, so a phone
+      // held the way phones are actually held reads as centred.
+      const gy = clamp((e.beta - 42) / 34, -1, 1)
+      setScrollState({ pointerX: gx * 0.55, pointerY: -gy * 0.45 })
+    }
+
+    const needsMotionPermission =
+      typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function'
+
+    // COARSE POINTERS ONLY. `'ondeviceorientation' in window` is true on
+    // desktop Chrome as well, and a convertible laptop or a tablet in desktop
+    // mode really does report orientation — on those, tilt would fight the
+    // mouse for the same channel and the parallax would jitter between two
+    // inputs. This is a stand-in for a cursor that is not there, so it belongs
+    // only where there is no cursor.
+    const coarsePointer =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(hover: none) and (pointer: coarse)').matches
+
+    if (
+      !reducedMotion &&
+      !needsMotionPermission &&
+      coarsePointer &&
+      typeof window !== 'undefined' &&
+      'ondeviceorientation' in window
+    ) {
+      window.addEventListener('deviceorientation', onOrientation, { passive: true })
     }
 
     // Re-measure on anything that can reflow the page. Sections mount lazily
@@ -303,6 +377,7 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
       window.removeEventListener('touchstart', onTouch)
       window.removeEventListener('touchmove', onTouch)
       window.removeEventListener('touchend', onTouchEnd)
+      window.removeEventListener('deviceorientation', onOrientation)
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [reducedMotion])
