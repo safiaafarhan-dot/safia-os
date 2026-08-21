@@ -1,11 +1,25 @@
 import React from 'react'
 import { RevealGroup, RevealItem } from './Reveal'
 import ScrollText from './ScrollText'
+import Assemble from './Assemble'
 
 /**
  * Shared section masthead for the SAFIA.OS system UI.
  * Renders a monospaced index label, a display title, and a hairline rule
  * whose leading segment is crimson — the single accent used throughout.
+ *
+ * THE TITLE IS THE ONE PIECE OF TEXT ON THE PAGE WITH MASS.
+ *
+ * It does not fade in — it arrives as fragments that spring into their seats
+ * and comes apart again when the section is left. See Assemble.jsx. That is
+ * deliberately scoped to this one element per section: everything around it
+ * still uses the ordinary reveal cascade, because an effect that happens to
+ * every piece of text signifies nothing and an assembling paragraph is simply
+ * unreadable.
+ *
+ * It sits OUTSIDE the reveal cascade for the same reason the hero's wordmark
+ * does: two systems animating one element's opacity fight, and the fragment
+ * springs must own it outright.
  */
 const SectionHeader = ({ index, label, title, description }) => (
   <RevealGroup as="header" className="mb-14 md:mb-20" stagger={0.07}>
@@ -19,13 +33,12 @@ const SectionHeader = ({ index, label, title, description }) => (
       </span>
     </RevealItem>
 
-    <RevealItem
+    <Assemble
       as="h2"
-      y={28}
-      className="text-display-sm md:text-display-md lg:text-display-lg font-display font-bold text-off-white"
+      className="block text-display-sm md:text-display-md lg:text-display-lg font-display font-bold text-off-white"
     >
       {title}
-    </RevealItem>
+    </Assemble>
 
     <RevealItem className="mt-6 flex items-center gap-0 max-w-md">
       <span className="h-px w-16 bg-crimson" />

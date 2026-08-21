@@ -89,6 +89,8 @@ export default function Beacon({ reducedMotion = false }) {
   const bloomMat = useRef()
   /** False until the beacon has been put in frame once. See the note below. */
   const placed = useRef(false)
+  /** Clock time at which the arrival finished, or null while it is still running. */
+  const settledAt = useRef(null)
 
   const materials = useMemo(
     () => ({
@@ -192,11 +194,43 @@ export default function Beacon({ reducedMotion = false }) {
     const halo = ignitionAt(0.14, 0.46)
     const bloom = ignitionAt(0.3, 0.72)
 
+    // THE LIGHT HAS ITS MOMENT, THEN BECOMES ENVIRONMENT.
+    //
+    // Once the arrival finishes, the beacon used to sit at full strength
+    // forever — a bright dot parked in the corner of every frame anyone who
+    // did not scroll would ever see. An event that never ends is not an event,
+    // it is a decoration, and a decoration that bright starts pulling the eye
+    // away from the copy.
+    //
+    // So it retreats: over about six seconds after the awakening completes it
+    // drops to roughly a fifth of its peak. It does NOT go to zero — the
+    // direction has always been that the light may remain as part of the
+    // environment, and a distant source is what the sky's hot lobe is the halo
+    // OF. What ends is its claim on the frame, not its existence.
+    if (settledAt.current === null && s.ignition >= 0.999) settledAt.current = s.time
+    const sinceSettled = settledAt.current === null ? 0 : s.time - settledAt.current
+    const RESTING = 0.2
+    const retreat = reducedMotion
+      ? RESTING
+      : 1 - (1 - RESTING) * THREE.MathUtils.smoothstep(sinceSettled, 0.8, 6.5)
+
+    // IT BREATHES HARDER THE LONGER IT IS LEFT ALONE.
+    //
+    // `stillness` is the counterpart to energy — see scrollStore. Reading it
+    // here is what stops "nothing is happening" from meaning "nothing is
+    // moving": stop scrolling and the source slowly swells and ebbs, so the
+    // resting state is alive rather than merely dim.
+    const breath = reducedMotion ? 0 : Math.sin(s.time * 0.32) * 0.5 + 0.5
+    const idleLift = 1 + s.stillness * breath * 0.55
+
     // A slow, shallow breath. Fast flicker reads as a broken sprite; this
     // reads as something running.
     const pulse = reducedMotion ? 1 : 0.86 + Math.sin(s.time * 0.9) * 0.09 + Math.sin(s.time * 0.37) * 0.05
-    const energy = 1 + s.energy * 0.5
-    const k = present * clear * energy
+    // Scrolling wakes it back up: the retreat is a resting state, not a
+    // one-way door, so travelling through the world re-energises the light
+    // that lit it.
+    const energy = 1 + s.energy * 1.4
+    const k = present * clear * energy * retreat * idleLift
 
     if (coreMat.current) coreMat.current.uniforms.uOpacity.value = core * k * pulse * 0.95
     if (haloMat.current) haloMat.current.uniforms.uOpacity.value = halo * k * pulse * 0.34

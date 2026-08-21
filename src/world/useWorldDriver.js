@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { setScrollState, useScrollStore } from '../state/scrollStore'
 import { useWorldStore } from '../state/worldStore'
 import { cursorField } from './cursorFieldState'
+import { setAmbience } from '../lib/ambience'
 import { STATION_IDS, STATIONS } from './stations'
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
@@ -141,6 +142,21 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
         1
       )
 
+      // SIGNED FLOW. The direction-aware counterpart to `energy`, damped
+      // harder than `velocity` so layers can multiply by it without jumping on
+      // the first frame of a flick. See scrollStore for why the sign matters.
+      const flow = lerp(prev.flow, clamp(velocity * 0.55, -1, 1), 1 - Math.exp(-5 * dt))
+
+      // STILLNESS. Rises whenever the page is left alone and collapses the
+      // instant it is not. The world's idle systems read this, which is what
+      // lets the environment be MOST alive when nothing is happening — the
+      // opposite of an energy-only model, where standing still means a dead
+      // scene.
+      const moving = Math.abs(velocity) > 0.035
+      const stillness = moving
+        ? Math.max(0, prev.stillness - dt * 4)
+        : Math.min(1, prev.stillness + dt / 1.5)
+
       // The ignition ramp. Fills over ~7.4s and then stays full for the rest
       // of the session — see the note in scrollStore. Reduced motion skips
       // straight to 1: an arrival sequence is exactly the kind of unrequested
@@ -168,6 +184,8 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
         progress,
         smooth,
         velocity,
+        flow,
+        stillness,
         station,
         ignition,
         pointerSmoothX,
@@ -175,6 +193,11 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
         energy,
         time: prev.time + dt,
       })
+
+      // The sound bed rides the same motion state the visuals do, so the two
+      // are describing one event. It is a no-op until the visitor has enabled
+      // sound, and self-throttles to ~12Hz — see ambience.js.
+      setAmbience({ energy, flow, stillness, station })
 
       // Reactive stores are only touched when the rounded station changes,
       // keeping this loop render-free the other ~99% of frames.

@@ -31,6 +31,32 @@ export const useScrollStore = create(() => ({
    * is what makes input feel like it lands in the world rather than on the UI.
    */
   energy: 0,
+  /**
+   * SIGNED, NORMALISED SCROLL FLOW, -1..1.
+   *
+   * `velocity` is the raw signed rate and swings hard; `flow` is the damped,
+   * bounded version the world is meant to be driven from. The distinction
+   * matters because almost everything downstream wants "which way, and how
+   * hard" as a stable number it can multiply by — a raw rate used directly
+   * makes every layer jump on the first frame of a flick.
+   *
+   * It is SIGNED on purpose. Reversing the scroll has to reverse the world,
+   * not merely stir it: particles stream back the way they came, the camera's
+   * lag swings the other way, trails point the other way. Feeding everything
+   * from `Math.abs(velocity)` is what makes a scroll-driven scene feel like an
+   * animation being scrubbed rather than a place being moved through.
+   */
+  flow: 0,
+  /**
+   * 0..1 how still the page has been. 0 the instant the visitor scrolls, and
+   * back to 1 over about a second and a half of no input.
+   *
+   * This is the counterpart to `energy`: energy says how hard the world was
+   * just pushed, stillness says how long it has been left alone. Idle systems
+   * read this so the environment can come alive PRECISELY when nothing is
+   * happening, rather than only ever being a response to input.
+   */
+  stillness: 1,
   /** Seconds since mount, advanced by the driver so every effect shares a clock. */
   time: 0,
   /**

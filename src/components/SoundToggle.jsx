@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { disableAudio, enableAudio, playReassemble } from '../lib/crackAudio'
+import { startAmbience, stopAmbience } from '../lib/ambience'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+
+const PREF_KEY = 'safia-os-sound'
 
 /**
  * Opt-in control for the world's audio layer.
@@ -40,8 +43,10 @@ const SoundToggle = () => {
 
   const toggle = useCallback(async () => {
     if (on) {
+      stopAmbience()
       disableAudio()
       setOn(false)
+      try { localStorage.setItem(PREF_KEY, 'off') } catch { /* private mode */ }
       return
     }
     const ok = await enableAudio()
@@ -51,12 +56,56 @@ const SoundToggle = () => {
       return
     }
     setOn(true)
+    try { localStorage.setItem(PREF_KEY, 'on') } catch { /* private mode */ }
     // Immediate confirmation that sound is live, using the gentlest cue in the
     // set. A silent toggle leaves the visitor unsure whether it did anything.
     playReassemble(0.8)
+    // The continuous bed under the events — see ambience.js.
+    startAmbience()
   }, [on])
 
-  useEffect(() => () => disableAudio(), [])
+  /**
+   * THE PREFERENCE IS REMEMBERED, BUT IT IS NEVER ACTED ON BY ITSELF.
+   *
+   * A stored "on" cannot legitimately start audio at load: no gesture has
+   * happened yet, so the browser suspends the context and the page ends up
+   * holding a silent AudioContext it never asked permission for — the exact
+   * state crackAudio's whole design avoids. Instead the preference ARMS the
+   * toggle, and the very next real interaction anywhere on the page — a click,
+   * a key, a touch — completes it.
+   *
+   * That is both correct and what a returning visitor actually wants: they
+   * asked for sound last time, they get it as soon as they touch anything,
+   * and a visitor who only ever reads gets silence.
+   */
+  useEffect(() => {
+    if (reducedMotion) return
+    let stored = null
+    try { stored = localStorage.getItem(PREF_KEY) } catch { /* private mode */ }
+    if (stored !== 'on') return
+
+    let done = false
+    const arm = async () => {
+      if (done) return
+      done = true
+      detach()
+      const ok = await enableAudio()
+      if (!ok) return
+      setOn(true)
+      startAmbience()
+    }
+    const detach = () => {
+      window.removeEventListener('pointerdown', arm)
+      window.removeEventListener('keydown', arm)
+      window.removeEventListener('touchstart', arm)
+    }
+    window.addEventListener('pointerdown', arm, { once: true })
+    window.addEventListener('keydown', arm, { once: true })
+    window.addEventListener('touchstart', arm, { once: true, passive: true })
+    return detach
+  }, [reducedMotion])
+
+  useEffect(() => () => { stopAmbience(); disableAudio() }, [])
 
   if (reducedMotion) return null
 

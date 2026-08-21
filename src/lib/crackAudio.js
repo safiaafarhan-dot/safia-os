@@ -96,6 +96,23 @@ export function disableAudio() {
 }
 
 /**
+ * Shared handles for other audio modules — currently the ambience bed.
+ *
+ * THERE MUST ONLY EVER BE ONE AudioContext ON THE PAGE. A second one is its own
+ * hardware voice: it does not go through this limiter, it is not suspended by
+ * `disableAudio`, and on some browsers it keeps the tab's audio indicator lit
+ * after everything here has stopped. So the bed borrows this context rather
+ * than opening its own, and inherits the autoplay contract for free — the
+ * accessor returns null whenever sound is off, reduced-motion is set, or the
+ * context has not been constructed, so a caller cannot accidentally make noise
+ * before the visitor has asked for it.
+ */
+export function audioBus() {
+  if (!enabled || !ctx || reduced) return null
+  return { ctx, master }
+}
+
+/**
  * A crack. `intensity` 0..1 scales both level and brightness, so a shell that
  * is barely opening ticks and one that is coming apart genuinely cracks.
  */

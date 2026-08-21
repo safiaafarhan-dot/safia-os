@@ -86,6 +86,39 @@ export default function CameraRig({ reducedMotion = false }) {
     if (!reducedMotion) {
       tmp.current.addScaledVector(right.current, s.pointerSmoothX * 0.9)
       tmp.current.addScaledVector(up.current, s.pointerSmoothY * 0.55)
+
+      // THE RIG IS NEVER PARKED.
+      //
+      // Stop scrolling and, until now, the camera stopped dead: position is a
+      // pure function of station, so a visitor who paused to read was looking
+      // at a still frame with some particles moving in it. That is the single
+      // clearest way a "living world" gives itself away as a scroll-scrubbed
+      // animation — the world only existed while you were driving it.
+      //
+      // So the rig keeps breathing, and it breathes HARDEST when nothing is
+      // happening. `stillness` (see scrollStore) rises the longer the page is
+      // left alone, so the drift is masked while travelling and comes forward
+      // the moment you stop. Three mutually prime periods, so the composite
+      // never returns to the same offset and it cannot read as a loop.
+      //
+      // Amplitude is deliberately under a unit. At this focal length that is a
+      // few pixels of parallax against the near layers and essentially nothing
+      // against the far ones — felt as the frame being ALIVE rather than seen
+      // as the camera moving, and far too small to walk the composition or
+      // push anything into the reading column.
+      const idle = s.stillness
+      const bt = s.time
+      tmp.current.addScaledVector(
+        right.current,
+        (Math.sin(bt * 0.089) * 0.42 + Math.sin(bt * 0.037 + 1.7) * 0.24) * idle
+      )
+      tmp.current.addScaledVector(
+        up.current,
+        (Math.cos(bt * 0.063) * 0.34 + Math.sin(bt * 0.021 + 0.6) * 0.18) * idle
+      )
+      // A shallow forward/back swell as well, so the depth axis is alive too
+      // and the drift does not read as a flat pan across a backdrop.
+      tmp.current.addScaledVector(tangent.current, Math.sin(bt * 0.047 + 2.3) * 0.55 * idle)
     }
     camera.position.copy(tmp.current)
 
@@ -127,6 +160,18 @@ export default function CameraRig({ reducedMotion = false }) {
         .addScaledVector(right.current, bhDist * 0.33)
         .addScaledVector(up.current, bhDist * -0.07)
       lookTarget.current.lerp(bhAim.current, attention)
+    }
+
+    // THE RIG LEANS INTO THE TRAVEL, AND THE LEAN IS SIGNED.
+    //
+    // `flow` is the damped, direction-aware scroll rate. Aiming a little ahead
+    // of the travel when moving forward and a little behind it when reversing
+    // is what makes scrolling back up feel like reversing rather than like the
+    // same shot played backwards — the camera looks where it is going, both
+    // ways.
+    if (!reducedMotion) {
+      lookTarget.current.addScaledVector(tangent.current, s.flow * 9)
+      lookTarget.current.addScaledVector(up.current, -s.flow * 1.6)
     }
 
     // The look target lags, so fast scrolling swings the view like a real rig
