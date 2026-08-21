@@ -36,6 +36,28 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
     const pinnedStation = pinParam === null ? null : parseFloat(pinParam)
     const hasPin = pinnedStation !== null && Number.isFinite(pinnedStation)
 
+    /**
+     * Diagnostic: ?ignition=0.35 pins the arrival sequence to one moment.
+     *
+     * Same family as ?station= above, and needed for the same reason. The
+     * awakening is a seven-second ramp that every layer reads its own slice
+     * of, so inspecting one beat of it otherwise means catching a screenshot
+     * inside a window a few hundred milliseconds wide — and under automation
+     * it is worse than unreliable, it is impossible: a hidden tab's rAF is
+     * throttled to about 1Hz, and with dt clamped at 50ms the ramp would take
+     * two and a half real minutes to fill. Every screenshot of the "finished"
+     * hero would in fact be a screenshot of its first instant.
+     *
+     * `?ignition=1` is the one to reach for when the target is the settled
+     * frame rather than a moment in the arrival.
+     */
+    const ignitionParam =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('ignition')
+        : null
+    const pinnedIgnition = ignitionParam === null ? null : parseFloat(ignitionParam)
+    const hasIgnitionPin = pinnedIgnition !== null && Number.isFinite(pinnedIgnition)
+
     let raf = 0
     let anchors = []
     let lastProgress = 0
@@ -119,11 +141,28 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
         1
       )
 
-      // The ignition ramp. Fills over ~4.2s and then stays full for the rest
+      // The ignition ramp. Fills over ~7.4s and then stays full for the rest
       // of the session — see the note in scrollStore. Reduced motion skips
       // straight to 1: an arrival sequence is exactly the kind of unrequested
       // motion that preference exists to remove.
-      const ignition = reducedMotion ? 1 : Math.min(1, prev.ignition + dt / 4.2)
+      //
+      // It was 4.2s, which was long enough to fade a finished frame up but not
+      // long enough to be a SEQUENCE. The awakening now has five distinct
+      // movements to get through — dark volume, source, dust, structure,
+      // identity — and each one needs to be legible as its own beat before the
+      // next arrives. Under about seven seconds they overlap into a single
+      // fade and the whole thing reads as a slow page load.
+      // HELD AT ZERO UNTIL THE BOOT OVERLAY HAS CLEARED. See the note on
+      // `bootComplete` in worldStore — the two arrivals have to be one arrival,
+      // and that means the world's does not start until the overlay's has
+      // finished handing over to it.
+      const ignition = hasIgnitionPin
+        ? clamp(pinnedIgnition, 0, 1)
+        : reducedMotion
+          ? 1
+          : useWorldStore.getState().bootComplete
+            ? Math.min(1, prev.ignition + dt / 7.4)
+            : 0
 
       setScrollState({
         progress,

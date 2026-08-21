@@ -216,10 +216,16 @@ function Form({
     // pointer without the whole world lurching toward it.
     const inf = influenceAt(world.x, world.y, world.z, 90) * 0.35
 
-    // SECOND TO ARRIVE: the large structures resolve out of the lit space
+    // FOURTH TO ARRIVE: the large structures resolve out of the lit space
     // once the space itself exists to resolve out of.
+    //
+    // Pushed back from (0.22, 0.62). The arrival now has real beats in front
+    // of it — the beacon, the stars, the dust, the source coming up — and at
+    // the old window the structures were already resolving while the volume
+    // around them was still lifting out of black, so they read as fading in
+    // rather than as being REVEALED by a light that had just reached them.
     mat.uniforms.uOpacity.value =
-      present * opacity * (1 - blocked * 0.75) * (1 + inf) * ignitionAt(0.22, 0.62)
+      present * opacity * (1 - blocked * 0.75) * (1 + inf) * ignitionAt(0.40, 0.82)
     mat.uniforms.uPulse.value = time * 0.42 + energy * 1.6
   })
 

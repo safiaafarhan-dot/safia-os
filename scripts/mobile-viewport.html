@@ -44,10 +44,14 @@ window.__mob = {
   anchors(){ const w=this.w(); return this.ids.map(id=>{const el=w.document.getElementById(id); if(!el) return null; const r=el.getBoundingClientRect(); return r.top + w.scrollY + r.height/2}) },
   scrollForStation(s){ const a=this.anchors(); const i=Math.max(0,Math.min(a.length-2,Math.floor(s))); const f=s-i; return a[i]+(a[i+1]-a[i])*f - this.w().innerHeight/2 },
   reveal(){ const w=this.w(); w.document.querySelectorAll('[style*="opacity"]').forEach(e=>{e.style.opacity='';e.style.transform='';e.style.filter=''}) },
-  frames(n,s){ const w=this.w(); const S=w.__scrollStores[0]; let t=performance.now();
-    for(let i=0;i<n;i++){ t+=16.7; S.setState({station:s,time:S.getState().time+0.0167,ignition:1}); w.__world.advance(t) } },
-  async go(s,n=60){ const w=this.w(); w.scrollTo({top:this.scrollForStation(s),behavior:'instant'});
-    await new Promise(r=>setTimeout(r,150)); this.frames(n,s); this.reveal();
+  // `ign` pins the arrival ramp. It defaults to 1 (the settled world), which is
+  // what almost every check wants; pass a fraction to inspect a beat of the
+  // awakening at phone width, where the reading column is nearly full-bleed and
+  // the content-aware sky dim has the least room to work.
+  frames(n,s,ign=1){ const w=this.w(); const S=w.__scrollStores[0]; let t=performance.now();
+    for(let i=0;i<n;i++){ t+=16.7; S.setState({station:s,time:S.getState().time+0.0167,ignition:ign}); w.__world.advance(t) } },
+  async go(s,n=60,ign=1){ const w=this.w(); w.scrollTo({top:this.scrollForStation(s),behavior:'instant'});
+    await new Promise(r=>setTimeout(r,150)); this.frames(n,s,ign); this.reveal();
     return {want:s, station:+w.__scrollStores[0].getState().station.toFixed(3), scrollY:Math.round(w.scrollY)} },
   async section(id,off=0){ const w=this.w(); const el=w.document.getElementById(id);
     const y=el.getBoundingClientRect().top+w.scrollY+off; w.scrollTo({top:y,behavior:'instant'});

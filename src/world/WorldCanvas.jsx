@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import AdaptiveDpr from './AdaptiveDpr'
 import Artifact from './Artifact'
 import Atmosphere from './Atmosphere'
+import Beacon from './Beacon'
 import Crystals from './Crystals'
 import CursorField from './CursorField'
 import DeepSpace from './DeepSpace'
@@ -152,6 +153,13 @@ const WorldCanvas = ({ reducedMotion = false }) => {
           glass to stone rather than showing everything at once. */}
       <Crystals count={effectiveTier.crystals} reducedMotion={reducedMotion} />
       <EnergyField count={effectiveTier.energyTrails} reducedMotion={reducedMotion} />
+
+      {/* THE FIRST THING IN THE WORLD. A point of light far down the corridor,
+          present before the volume around it has finished lifting out of
+          black. It is the subject the opening frame did not have, and its
+          lateral placement is derived from the measured reading column, so it
+          cannot end up behind the type on any layout. See Beacon.jsx. */}
+      <Beacon reducedMotion={reducedMotion} />
 
       {/* THE ABSTRACT DIMENSION. Four large translucent structures that replace
           the ringed planet the opening used to be built around — an incomplete

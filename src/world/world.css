@@ -4,24 +4,25 @@
  * This exists so the page is never a flat black rectangle — not during the
  * first paint, not on hardware without WebGL, not if the GL context is lost.
  *
- * IT IS ALSO THE SINGLE LARGEST COLOUR SURFACE ON THE PAGE, which is why it
- * was rebuilt. The previous ladder ran #1c2333 -> #070910: four desaturated
- * near-blacks, with the LARGEST light pool set to crimson and parked in the
- * top-left corner. Composited, that is a dull maroon wash over grey-black
- * covering most of the viewport — the environment read as dim and slightly
- * red no matter what the WebGL layer did on top of it, because this is what
- * the WebGL layer was being composited against.
+ * IT MUST AGREE WITH THE WEBGL SKY, AND IT DID NOT.
  *
- * The ladder is now genuinely NAVY and genuinely LIT: it rises to a lifted
- * electric navy at the top of frame and falls to deep midnight at the edges,
- * so the frame has a light source instead of a floor. Blue and cyan own the
- * two largest pools, violet supports, magenta is a hint, and crimson is the
- * smallest and faintest of the four.
+ * This layer had been graded on its own, to the same "lift it off black"
+ * instinct that flattened the sky in Atmosphere.jsx, and it landed in the same
+ * place: a 78vw electric-blue disc at 0.5 alpha over the top-right of every
+ * frame, a violet one bottom-left, and a third cyan pool parked at 38%/26% —
+ * which is to say directly over the hero's reading column. Composited, the
+ * first paint of the site was a bright blue wash with a smear across the text.
  *
- * Why the alphas are higher than before: over a near-black base, a 0.2 veil is
- * invisible mud. Over a lifted navy base it reads as coloured light. Luminance
- * and saturation have to move together — raising one alone is what produces
- * either a washed-out grey or a neon smear.
+ * Two things follow from that. The obvious one is that it was ugly. The less
+ * obvious one is that it was a HANDOVER problem: the WebGL sky renders opaque
+ * on top of this, so a visitor watched a bright blue page become a dark one a
+ * second or two after load, which reads as a bug in the thing that just
+ * finished loading.
+ *
+ * So the ladder is now near-black, and the light in it is ONE source, tight
+ * and high on the right — the same light the beacon and the sky's hot lobe
+ * are, in the same place, so the CSS tier and the WebGL tier are two
+ * renderings of one composition and the upgrade between them is invisible.
  *
  * Only transform and opacity are animated, so the whole layer stays on the
  * compositor and never triggers layout or paint while it drifts.
@@ -37,15 +38,15 @@
 .world-backdrop {
   position: absolute;
   inset: 0;
-  /* Two stacked gradients: a violet floor bottom-left, and the main navy
-     ladder lit from the upper right — the same side the world's structures
-     and the neural field occupy, so the CSS and the WebGL agree about where
-     the light is coming from. */
+  /* A near-black volume with a single cool source high on the right. The
+     second stop set is a very low violet floor, so the bottom of frame has
+     colour in it rather than being a dead value — it must stay faint. */
   background:
-    radial-gradient(95% 75% at 8% 100%, rgba(84, 44, 148, 0.42) 0%, rgba(48, 26, 92, 0.18) 45%, transparent 72%),
-    radial-gradient(140% 108% at 64% 2%, #27467a 0%, #1a3059 26%, #101f3d 52%, #0a1428 76%, #060c18 100%);
+    radial-gradient(70% 55% at 6% 100%, rgba(46, 26, 84, 0.20) 0%, rgba(26, 16, 52, 0.08) 46%, transparent 74%),
+    radial-gradient(120% 96% at 76% 6%, #12233f 0%, #0b1730 24%, #070e1f 52%, #040811 78%, #02040a 100%);
   overflow: hidden;
 }
+
 /* Slow-drifting light pools. Each moves on its own long, prime-ish period so
    the composite never visibly repeats. */
 .world-veil {
@@ -56,30 +57,37 @@
   will-change: transform, opacity;
 }
 
+/* THE SOURCE. Half the diameter it was and a third of the alpha, and pushed
+   further into the corner, so it reads as a light with a position rather than
+   as a colour cast over the whole frame. */
 .world-veil--a {
-  width: 78vw;
-  height: 78vw;
-  top: -26vw;
-  right: -16vw;
-  background: radial-gradient(circle, rgba(64, 178, 255, 0.5) 0%, rgba(38, 120, 220, 0.26) 38%, transparent 66%);
+  width: 42vw;
+  height: 42vw;
+  top: -14vw;
+  right: -8vw;
+  background: radial-gradient(circle, rgba(72, 186, 255, 0.30) 0%, rgba(38, 120, 220, 0.11) 36%, transparent 64%);
   animation: worldDriftA 47s ease-in-out infinite;
 }
 
 .world-veil--b {
-  width: 62vw;
-  height: 62vw;
-  bottom: -20vw;
-  left: -14vw;
-  background: radial-gradient(circle, rgba(132, 86, 236, 0.42) 0%, rgba(84, 52, 176, 0.2) 40%, transparent 68%);
+  width: 52vw;
+  height: 52vw;
+  bottom: -22vw;
+  left: -18vw;
+  background: radial-gradient(circle, rgba(112, 74, 208, 0.16) 0%, rgba(70, 44, 150, 0.06) 40%, transparent 68%);
   animation: worldDriftB 61s ease-in-out infinite;
 }
 
+/* THIS ONE USED TO SIT ON THE WORDS.
+   At 46vw anchored to 38%/26% it covered the hero's headline and first
+   paragraph — the literal "light interfering with readability". It is now
+   small, faint, and kept out on the right where the source is. */
 .world-veil--c {
-  width: 46vw;
-  height: 46vw;
-  top: 26%;
-  left: 38%;
-  background: radial-gradient(circle, rgba(96, 226, 244, 0.26) 0%, rgba(52, 150, 200, 0.12) 42%, transparent 68%);
+  width: 24vw;
+  height: 24vw;
+  top: 34%;
+  left: 66%;
+  background: radial-gradient(circle, rgba(96, 226, 244, 0.12) 0%, rgba(52, 150, 200, 0.05) 42%, transparent 68%);
   animation: worldDriftC 73s ease-in-out infinite;
 }
 
@@ -89,20 +97,20 @@
    space. They must never grow: the moment crimson is large here, the whole
    page tints red again. */
 .world-veil--d {
-  width: 34vw;
-  height: 34vw;
-  bottom: 4%;
-  right: 16%;
-  background: radial-gradient(circle, rgba(206, 78, 186, 0.2) 0%, transparent 62%);
+  width: 26vw;
+  height: 26vw;
+  bottom: 6%;
+  right: 20%;
+  background: radial-gradient(circle, rgba(206, 78, 186, 0.09) 0%, transparent 62%);
   animation: worldDriftD 89s ease-in-out infinite;
 }
 
 .world-veil--e {
-  width: 26vw;
-  height: 26vw;
-  top: 8%;
-  left: 6%;
-  background: radial-gradient(circle, rgba(224, 46, 78, 0.16) 0%, transparent 60%);
+  width: 20vw;
+  height: 20vw;
+  top: 6%;
+  left: 4%;
+  background: radial-gradient(circle, rgba(224, 46, 78, 0.07) 0%, transparent 60%);
   animation: worldDriftC 101s ease-in-out infinite;
 }
 

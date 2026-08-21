@@ -2,6 +2,7 @@ import React, { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { ignitionAt, scrollState } from '../state/scrollStore'
+import { safeZone } from './safeZone'
 import { nearFieldsSuppressed, pushOutOfColumn } from './safeZone'
 import { blackHoleState } from './blackHoleState'
 import { STATIONS, STATION_SPACING, WORLD_DEPTH, sampleMood } from './stations'
@@ -57,42 +58,72 @@ const skyFragment = /* glsl */ `
   uniform vec3 uCoolGlow;
   uniform float uCoolPower;
   uniform float uTime;
+  uniform vec2 uResolution;
+  // The measured reading column, in NDC: (left, bottom, right, top).
+  uniform vec4 uColumn;
+  // How far the sky is pulled down inside that column. 1 = untouched.
+  uniform float uColumnDim;
+  // Softness of the column's edge, in NDC units.
+  uniform float uColumnFeather;
 
   void main() {
     vec3 dir = normalize(vDir);
     float h = dir.y * 0.5 + 0.5;
     vec3 col = mix(uNadir, uZenith, smoothstep(0.0, 0.92, h));
 
-    // The off-frame key bleeding into the sky. Wide and weak — it should read
-    // as "there is something bright over there", never as a lens flare.
+    // THE SOURCE IS A SOURCE, NOT A WASH.
+    //
+    // These lobes used to run at pow(d, 2.6) and pow(d, 3.4) — wide enough
+    // that between them they covered most of the sphere, so every pixel of
+    // the frame carried some of the light and the image had no dark end at
+    // all. A wide, medium-strength lobe is a colour cast; a tight, bright one
+    // is a light you can point at. The exponent is the whole difference.
     float d = max(dot(dir, normalize(uGlowDir)), 0.0);
-    col += uGlow * pow(d, 2.6) * uGlowPower;
+    // The core: small and hot, so there is a genuine highlight in frame.
+    col += uGlow * pow(d, 11.0) * uGlowPower * 1.9;
+    // Its falloff: wider and much weaker, so the core sits in a halo rather
+    // than ending at a hard edge. It must stay faint — this is the term that
+    // turns into a wash the moment it is generous.
+    col += uGlow * pow(d, 3.2) * uGlowPower * 0.15;
 
-    // THE COOL SOURCE. This used to be a token counter-glow at a twentieth of
-    // the crimson's strength, which meant the sky only ever had one light in
-    // it and everything away from that light fell to near-black. It is now a
-    // real source of its own, opposite the warm one and slightly wider, so the
-    // background is lit FROM TWO SIDES. Complementary sources are what give a
-    // dark frame depth without raising its overall brightness.
+    // The counter-source, opposite and cooler. Kept deliberately smaller than
+    // the key: two equal lights leave nowhere for the frame to fall dark, and
+    // the dark is what the opening is made of.
     float d2 = max(dot(dir, normalize(-uGlowDir)), 0.0);
-    col += uCoolGlow * pow(d2, 3.4) * uCoolPower;
+    col += uCoolGlow * pow(d2, 7.0) * uCoolPower;
 
-    // A third, very wide violet wash across the middle of the sphere. Broad and
-    // weak: it exists to stop the band between the two sources reading as a
-    // dead zone, and should never be identifiable as its own light.
+    // A very wide, very weak violet across the belly of the sphere, so the
+    // region between the two sources is not a dead value. It is a hint — at
+    // any strength where it is identifiable as its own light it has become
+    // the flat cast this grade exists to avoid.
     float band = 1.0 - abs(dir.y);
-    col += vec3(0.072, 0.040, 0.115) * pow(band, 3.0) * 0.72;
+    col += vec3(0.030, 0.017, 0.050) * pow(band, 4.0) * 0.5;
 
-    // A GLASS-WHITE ZENITH BLOOM. Very wide, very weak, and pure highlight:
-    // it is what stops the top of frame reading as a ceiling. Without a
-    // near-white anywhere in the gradient the eye reads the whole image as
-    // underexposed no matter how saturated the mid-tones are.
-    col += vec3(0.05, 0.068, 0.098) * pow(smoothstep(0.42, 1.0, h), 2.4);
+    // THE COLUMN KNOWS WHERE THE TEXT IS.
+    //
+    // Everything above is the environment's own lighting. This is the part
+    // that makes it content-aware: the reading column is measured from the
+    // real DOM every frame (see safeZone.js) and handed here in NDC, and the
+    // sky is pulled down inside it with a wide, soft falloff. The light is
+    // therefore incapable of drifting over the type — not by authoring, not
+    // by a scrim painted on top, but because the source is dimmed exactly
+    // where the words are and nowhere else.
+    //
+    // Signed distance to the rectangle: negative inside, positive outside.
+    vec2 ndc = (gl_FragCoord.xy / uResolution) * 2.0 - 1.0;
+    vec2 centre = vec2(uColumn.x + uColumn.z, uColumn.y + uColumn.w) * 0.5;
+    vec2 extent = vec2(uColumn.z - uColumn.x, uColumn.w - uColumn.y) * 0.5;
+    vec2 q = abs(ndc - centre) - extent;
+    float sd = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+    float shade = 1.0 - smoothstep(-uColumnFeather * 0.35, uColumnFeather, sd);
+    col *= mix(1.0, uColumnDim, shade);
 
     // Hash dither. Very dark wide gradients band badly on 8-bit displays, and
-    // banding is the single most "cheap render" artefact there is.
+    // banding is the single most "cheap render" artefact there is. It matters
+    // more now than it did, because the frame spends far more of its range
+    // down near black.
     float n = fract(sin(dot(gl_FragCoord.xy + fract(uTime) * 91.0, vec2(12.9898, 78.233))) * 43758.5453);
-    col += (n - 0.5) * 0.007;
+    col += (n - 0.5) * 0.010;
 
     gl_FragColor = vec4(col, 1.0);
   }
@@ -100,20 +131,39 @@ const skyFragment = /* glsl */ `
 
 const skyAccent = new THREE.Color()
 const skyAccentNext = new THREE.Color()
+const skyZenith = new THREE.Color()
+const skyNadir = new THREE.Color()
 
 /**
- * THE LIFT IS SCOPED TO THE OPENING.
+ * THE OPENING IS GRADED FOR RANGE, NOT FOR BRIGHTNESS.
  *
- * The luminous ladder belongs to the hero's abstract-dimension direction. The
- * rest of the journey — the matter band, the worlds, the deep archive — was
- * graded against the darker sky it already had, and quietly raising the floor
- * under all eight stations would have re-lit six sections nobody asked to
- * change. These are the two ends, blended by depth.
+ * These four values have now been moved twice, in opposite directions, and the
+ * reason is worth recording so it does not happen a third time.
+ *
+ * They started near-black, which read as an unlit rectangle. The correction
+ * lifted the opening to #1d3a6b over #070f20 and widened both sky lobes, and
+ * the frame stopped being black — but it became a single flat mid-navy from
+ * corner to corner, because every term in the shader was adding light
+ * everywhere at once. A frame with no black in it is exactly as cheap as a
+ * frame with no light in it, and for the same reason: nothing in it has
+ * RANGE, so nothing in it reads as depth.
+ *
+ * The opening is therefore back near black — and this time that is safe,
+ * because the light it lost has been given back as a SOURCE rather than as a
+ * floor: one tight, hot lobe in the shader above, the beacon down the
+ * corridor, dust lit as it crosses in front of the source, and the forms
+ * edged against the dark. Contrast, not exposure. That is the whole grade.
  */
-const SKY_OPEN_ZENITH = new THREE.Color('#1d3a6b')
-const SKY_OPEN_NADIR = new THREE.Color('#070f20')
+const SKY_OPEN_ZENITH = new THREE.Color('#0d1e3a')
+const SKY_OPEN_NADIR = new THREE.Color('#03060e')
 const SKY_DEEP_ZENITH = new THREE.Color('#0c1424')
 const SKY_DEEP_NADIR = new THREE.Color('#05080f')
+
+/** Where the session starts: the volume before any light has entered it. */
+const SKY_DARK_ZENITH = new THREE.Color('#04070f')
+const SKY_DARK_NADIR = new THREE.Color('#010204')
+
+const _glowAim = new THREE.Vector3()
 
 function Sky() {
   const matRef = useRef()
@@ -121,37 +171,24 @@ function Sky() {
 
   const uniforms = useMemo(
     () => ({
-      // Never #000. A near-black with a cool cast reads as atmosphere with
-      // depth; pure black reads as an unlit surface.
-      // Lifted off black. The nadir in particular was #03050a, which is within
-      // rounding distance of pure black across the whole lower hemisphere.
-      // LIFTED, AND GENUINELY NAVY.
-      //
-      // These were #0c1424 over #05080f — a very dark navy over something
-      // within rounding distance of pure black. Combined with a CRIMSON key
-      // light, the background of every frame was "near-black, tinted red",
-      // which is precisely the dull look this direction rejects. The ladder now
-      // runs a lit electric navy down to a deep midnight that still has colour
-      // in it, and the key light is no longer a fixed crimson at all.
-      uZenith: { value: new THREE.Color('#1d3a6b') },
-      // The floor stays genuinely dark. Luminous does not mean uniformly
-      // bright: the first pass lifted every value at once and the frame became
-      // a flat blue wash with no range in it, which reads as cheap in exactly
-      // the same way flat black does. The image needs a lit core AND a dark
-      // edge — that contrast is what depth actually is.
-      uNadir: { value: new THREE.Color('#070f20') },
+      uZenith: { value: SKY_DARK_ZENITH.clone() },
+      uNadir: { value: SKY_DARK_NADIR.clone() },
       // Tracks the station accent — cyan through the opening, violet at
       // Skills, crimson deeper in. One value, so the sky's own light is
       // always the same colour as the light in the scene instead of arguing
       // with it.
       uGlow: { value: new THREE.Color('#3ad4ff') },
-      uGlowPower: { value: 0.6 },
-      // A real electric blue rather than the previous dull teal, and strong
-      // enough to be a source rather than a counter-glow.
+      uGlowPower: { value: 0 },
       uCoolGlow: { value: new THREE.Color('#3f9ae8') },
-      uCoolPower: { value: 0.34 },
-      uGlowDir: { value: new THREE.Vector3(0.6, 0.3, -1) },
+      uCoolPower: { value: 0 },
+      uGlowDir: { value: new THREE.Vector3(0.62, 0.34, -0.7) },
       uTime: { value: 0 },
+      uResolution: { value: new THREE.Vector2(1, 1) },
+      // Full frame until the first measurement lands, with no dimming, so a
+      // pre-hydration frame is never a dark hole.
+      uColumn: { value: new THREE.Vector4(-1, -1, 1, 1) },
+      uColumnDim: { value: 1 },
+      uColumnFeather: { value: 0.55 },
     }),
     []
   )
@@ -163,10 +200,32 @@ function Sky() {
     const u = matRef.current?.uniforms
     if (!u) return
     u.uTime.value = s.time
-    // The source swings slowly across the scroll, so the background itself is
-    // part of the choreography rather than a static backdrop.
-    const a = s.time * 0.017 + s.station * 0.62
-    u.uGlowDir.value.set(Math.sin(a), 0.2 + Math.cos(a * 0.6) * 0.28, Math.cos(a) - 0.4)
+    u.uResolution.value.set(state.size.width, state.size.height)
+
+    // THE SOURCE IS PLACED AGAINST THE LAYOUT, NOT ON A TIMER.
+    //
+    // It used to swing on a free-running sine, which meant the brightest part
+    // of the sky wandered across the reading column roughly once a minute and
+    // nothing downstream knew or cared. The aim is now derived from where the
+    // text actually is: it sits on the side of the frame the column does NOT
+    // occupy, and high, so it is above the copy rather than behind it. The
+    // drift survives — it is just bounded to the free half of the frame now.
+    const columnCentre = (safeZone.left + safeZone.right) * 0.5
+    // Opposite the column, and never dead ahead: a source on the axis of
+    // travel is a headlight, and a headlight flattens everything it lights.
+    const freeSide = columnCentre > 0 ? -1 : 1
+    const drift = Math.sin(s.time * 0.021 + s.station * 0.38)
+    // When the column is full-bleed — a phone, or a data-dense section — there
+    // is no free SIDE, only a free TOP, so the source lifts rather than sliding
+    // to an edge that does not exist. Same reasoning as the beacon's placement.
+    const cramped = safeZone.mobile || safeZone.right - safeZone.left > 1.5
+    _glowAim.set(
+      freeSide * (cramped ? 0.42 : 0.72 + drift * 0.16),
+      (cramped ? 0.62 : 0.30) + Math.cos(s.time * 0.017) * 0.10,
+      -0.62
+    )
+    u.uGlowDir.value.lerp(_glowAim, 0.02)
+
     // Lerp the key toward the current station's accent. Doing this here rather
     // than hardcoding a hue is what lets the whole sky turn over the course of
     // the journey without a second palette existing anywhere.
@@ -174,24 +233,50 @@ function Sky() {
     const j = Math.min(STATIONS.length - 1, i + 1)
     skyAccent.set(STATIONS[i].mood.accent).lerp(skyAccentNext.set(STATIONS[j].mood.accent), s.station - i)
     u.uGlow.value.lerp(skyAccent, 0.05)
-    // FIRST TO ARRIVE. The sources come up out of near-darkness, so the
-    // session opens on deep space with light entering it rather than on a
-    // finished frame.
-    // Fully lifted through hero and About, back to the original grade by
-    // Experience, so the handover happens across the same stations the accent
-    // hue does and reads as travel rather than as a lighting change.
-    const openness = 1 - THREE.MathUtils.smoothstep(s.station, 1.2, 3.0)
-    u.uZenith.value.copy(SKY_DEEP_ZENITH).lerp(SKY_OPEN_ZENITH, openness)
-    u.uNadir.value.copy(SKY_DEEP_NADIR).lerp(SKY_OPEN_NADIR, openness)
 
-    const lit = 0.12 + ignitionAt(0, 0.4) * 0.88
-    u.uGlowPower.value = (0.4 + sampleMood(s.station, 'accentPower') * 0.36 + s.energy * 0.16) * lit
-    // The cool source breathes on its own slow cycle, out of phase with the
-    // warm one, so the sky is never static even when nothing is happening.
-    // Tuned down from 0.4 + cool*0.4: at station 0 that resolved to ~1.02 and
-    // the cool lobe flooded most of the frame.
+    // THE AWAKENING, FIRST MOVEMENT: the volume itself arrives.
+    //
+    // The base grade used to be at full value on frame one, so "ignition" only
+    // ever ramped the lobes up over a sky that was already fully lit — which
+    // is not an arrival, it is a brightness animation on a finished frame. The
+    // ground now lifts out of true darkness first, and only then does anything
+    // light it.
+    const dawn = ignitionAt(0.0, 0.34)
+    const openness = 1 - THREE.MathUtils.smoothstep(s.station, 1.2, 3.0)
+    skyZenith.copy(SKY_DEEP_ZENITH).lerp(SKY_OPEN_ZENITH, openness)
+    skyNadir.copy(SKY_DEEP_NADIR).lerp(SKY_OPEN_NADIR, openness)
+    u.uZenith.value.copy(SKY_DARK_ZENITH).lerp(skyZenith, dawn)
+    u.uNadir.value.copy(SKY_DARK_NADIR).lerp(skyNadir, dawn)
+
+    // THE CONTENT-AWARE HALF.
+    //
+    // The measured column, straight from the same keep-out volume the world's
+    // geometry already respects, so the sky and the objects agree about where
+    // the words are. The dim is strongest through the opening, where the hero
+    // runs `.station--clear` and there is no CSS scrim behind the type at all
+    // — deeper sections have the radial scrim and only need a light touch.
+    //
+    // It is also scaled back when the column is very wide: on a phone, or in a
+    // data-dense section, the measured rect can cover most of the viewport,
+    // and dimming all of that is just the flat black page by another route.
+    const coverage = THREE.MathUtils.clamp((safeZone.right - safeZone.left) / 2, 0, 1)
+    const openBand = 1 - THREE.MathUtils.smoothstep(s.station, 0.6, 2.4)
+    const floorDim = THREE.MathUtils.lerp(0.30, 0.74, coverage)
+    u.uColumnDim.value += (THREE.MathUtils.lerp(0.84, floorDim, openBand) - u.uColumnDim.value) * 0.06
+    u.uColumn.value.set(safeZone.left, safeZone.bottom, safeZone.right, safeZone.top)
+
+    // THE AWAKENING, SECOND MOVEMENT: the light enters the volume.
+    //
+    // Strictly after the ground has lifted, so the order the visitor reads is
+    // darkness, then a source in it — not both at once, which is just a fade
+    // from black and reads as a page loading rather than as a place waking up.
+    const lit = ignitionAt(0.16, 0.62)
+    u.uGlowPower.value = (0.34 + sampleMood(s.station, 'accentPower') * 0.30 + s.energy * 0.14) * lit
+    // The counter-source stays deliberately under the key. It exists so the
+    // shadow side has colour in it; the moment it approaches parity the frame
+    // is lit from everywhere and the dark end of the range is gone.
     u.uCoolPower.value =
-      (0.24 + sampleMood(s.station, 'coolPower') * 0.26 + Math.sin(s.time * 0.06) * 0.06 + s.energy * 0.1) * lit
+      (0.10 + sampleMood(s.station, 'coolPower') * 0.13 + Math.sin(s.time * 0.06) * 0.03 + s.energy * 0.06) * lit
   })
 
   return (
@@ -267,6 +352,11 @@ const dustFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform vec3 uAccent;
   uniform float uEnergy;
+  // 0..1 slice of the arrival ramp. The particulate is the SECOND thing to
+  // exist in the session — after the beacon and before anything structural —
+  // because a light with nothing around it is a dot, while a light with dust
+  // drifting through it is a volume.
+  uniform float uArrive;
 
   varying float vAlpha;
   varying float vDepth;
@@ -285,7 +375,7 @@ const dustFragment = /* glsl */ `
     // colour of wherever the camera currently is without turning into confetti.
     vec3 col = mix(uColor, uAccent, step(0.86, vDepth) * (0.5 + uEnergy * 0.5));
 
-    gl_FragColor = vec4(col, soft * vAlpha * 0.34);
+    gl_FragColor = vec4(col, soft * vAlpha * 0.34 * uArrive);
   }
 `
 
@@ -322,6 +412,7 @@ function DustField({ count, quality }) {
       uEnergy: { value: 0 },
       uColor: { value: new THREE.Color('#8f9099') },
       uAccent: { value: new THREE.Color('#b3122e') },
+      uArrive: { value: 0 },
     }),
     []
   )
@@ -334,6 +425,10 @@ function DustField({ count, quality }) {
     u.uCamZ.value = state.camera.position.z
     u.uPointer.value.set(s.pointerSmoothX, s.pointerSmoothY)
     u.uEnergy.value = s.energy
+    // Third beat of the awakening: atmosphere. Overlaps the beacon's halo, so
+    // the dust appears to be revealed BY the light strengthening rather than
+    // switching on beside it.
+    u.uArrive.value = ignitionAt(0.06, 0.44)
   })
 
   return (
@@ -376,11 +471,12 @@ const starVertex = /* glsl */ `
 
 const starFragment = /* glsl */ `
   varying float vTwinkle;
+  uniform float uArrive;
   void main() {
     vec2 uv = gl_PointCoord - 0.5;
     float d = length(uv);
     if (d > 0.5) discard;
-    gl_FragColor = vec4(vec3(0.62, 0.65, 0.74), smoothstep(0.5, 0.0, d) * vTwinkle * 0.4);
+    gl_FragColor = vec4(vec3(0.62, 0.65, 0.74), smoothstep(0.5, 0.0, d) * vTwinkle * 0.4 * uArrive);
   }
 `
 
@@ -410,10 +506,16 @@ function StarField({ count }) {
     return { positions, sizes, phases }
   }, [count])
 
-  const uniforms = useMemo(() => ({ uTime: { value: 0 } }), [])
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uArrive: { value: 0 } }), [])
 
   useFrame((state) => {
-    if (matRef.current) matRef.current.uniforms.uTime.value = scrollState().time
+    if (matRef.current) {
+      matRef.current.uniforms.uTime.value = scrollState().time
+      // Earliest of all the fields. Stars are what a dark volume resolves into
+      // once the eye adjusts, so they belong before the dust and well before
+      // anything with a silhouette.
+      matRef.current.uniforms.uArrive.value = ignitionAt(0.03, 0.32)
+    }
     // Anchor to the camera so the starfield is never escaped, and rotate it
     // imperceptibly so the sky itself is alive.
     if (groupRef.current) {

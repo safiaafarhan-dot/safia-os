@@ -46,9 +46,20 @@ const progressOf = (rect, vh) => {
   return Math.min(1, Math.max(0, travelled / total))
 }
 
+/**
+ * Default resting opacity for characters the lit edge has not reached.
+ *
+ * 0.28 is right for a paragraph you scroll INTO — it is unlit, not missing,
+ * and it resolves as you arrive at it. It is wrong for a paragraph you LAND
+ * on, which is why `floor` is a prop: the hero's line sits mid-viewport at
+ * scroll zero, so its progress is stuck around 0.5 forever and its back half
+ * never resolves at all. Over a live 3D background, characters at 0.28 of
+ * `titanium` are genuinely hard to read, which is the readability complaint
+ * this component was accidentally causing rather than solving.
+ */
 const FLOOR = 0.28
 
-const ScrollText = ({ children, className = '', as: Tag = 'p', ...rest }) => {
+const ScrollText = ({ children, className = '', as: Tag = 'p', floor = FLOOR, ...rest }) => {
   const ref = useRef(null)
   const reducedMotion = usePrefersReducedMotion()
   const text = typeof children === 'string' ? children : String(children ?? '')
@@ -82,7 +93,7 @@ const ScrollText = ({ children, className = '', as: Tag = 'p', ...rest }) => {
       for (let i = 0; i < chars.length; i++) {
         const local = head - i
         const lit = local <= 0 ? 0 : local >= 1 ? 1 : local
-        chars[i].style.opacity = String(FLOOR + (1 - FLOOR) * lit)
+        chars[i].style.opacity = String(floor + (1 - floor) * lit)
       }
     }
 
@@ -98,7 +109,7 @@ const ScrollText = ({ children, className = '', as: Tag = 'p', ...rest }) => {
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
     }
-  }, [reducedMotion, text])
+  }, [reducedMotion, text, floor])
 
   if (reducedMotion) {
     return <Tag className={className} {...rest}>{text}</Tag>
@@ -109,7 +120,7 @@ const ScrollText = ({ children, className = '', as: Tag = 'p', ...rest }) => {
       {words.map((word, w) => (
         <span key={`w${w}-${word}`} aria-hidden="true" className="inline-block whitespace-pre">
           {Array.from(word).map((ch, c) => (
-            <span key={`c${w}-${c}`} data-sc style={{ opacity: FLOOR, willChange: 'opacity' }}>
+            <span key={`c${w}-${c}`} data-sc style={{ opacity: floor, willChange: 'opacity' }}>
               {ch}
             </span>
           ))}

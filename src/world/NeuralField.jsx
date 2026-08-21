@@ -563,8 +563,12 @@ export default function NeuralField({ count = 90, reducedMotion = false }) {
     // Yields to the artifact as it closes. The network is the hero's argument
     // about who built this, but it is not the subject of THIS shot, and two
     // subjects in one frame is no subject at all.
+    // LAST TO ARRIVE, and deliberately so: the space exists, then it is lit,
+    // then it has structure in it, and only then does the thing in the middle
+    // start computing. It is the payoff of the awakening, not part of its
+    // scaffolding.
     const fade =
-      present * (0.85 + energy * 0.15) * ignitionAt(0.46, 1) * (1 - artifactState.dominance * 0.92)
+      present * (0.85 + energy * 0.15) * ignitionAt(0.62, 1) * (1 - artifactState.dominance * 0.92)
     for (const mat of [nodeMatRef.current, linkMatRef.current]) {
       if (!mat) continue
       mat.uniforms.uFade.value = fade

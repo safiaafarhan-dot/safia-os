@@ -72,22 +72,26 @@ const station = (i, id, { x = 0, y = 0, lookX = 0, lookY = 0, mood }) => ({
  * vignette        post-grade corner falloff
  */
 export const STATIONS = [
-  // THE OPENING. Cyan accent, high cool power, lifted ambient and a long fog
-  // reach — the frame should read as a deep lit volume, not as a dark room
-  // with objects in it.
+  // THE OPENING. Cyan accent, and the LOWEST exposure, ambient and bloom in
+  // the journey — deliberately, and this is the correction that matters most
+  // in this file.
   //
-  // The vignette is NOT pulled back, and that is a correction. Dropping it to
-  // 0.58 alongside the lifted sky produced a uniformly bright blue frame with
-  // no edges — luminous, but flat, and flat reads as cheap in exactly the way
-  // flat black does. Brightness in the centre needs falloff at the corners to
-  // become depth rather than a wash.
+  // These four numbers were the other half of the flat-blue hero. Ambient at
+  // 0.98 puts an even fill on every surface in frame, which is the definition
+  // of a frame with no shadow side; exposure 1.14 and bloom 0.58 then lifted
+  // what was left. The opening is now graded DOWN, so the one tight sky lobe,
+  // the beacon and the rim lights are the only things carrying light — and a
+  // frame where you can point at the source is a frame with depth in it.
+  //
+  // The vignette goes UP rather than down for the same reason: brightness in
+  // the centre only becomes depth if it falls off at the corners.
   station(0, 'hero', {
     x: 0, y: 1.0, lookX: 0.0, lookY: 0.6,
-    mood: { coolPower: 1.55, fogNear: 16, fogFar: 150, accent: '#3ad4ff', ambient: 0.98, density: 0.72, light: 1.34, accentPower: 0.58, exposure: 1.14, bloom: 0.58, vignette: 0.82 },
+    mood: { coolPower: 1.12, fogNear: 15, fogFar: 122, accent: '#3ad4ff', ambient: 0.42, density: 0.62, light: 1.16, accentPower: 0.64, exposure: 1.0, bloom: 0.40, vignette: 1.02 },
   }),
   station(1, 'about', {
     x: -7, y: 4.5, lookX: -0.5, lookY: 0.9,
-    mood: { coolPower: 1.48, fogNear: 16, fogFar: 142, accent: '#4bb8f5', ambient: 0.96, density: 0.76, light: 1.32, accentPower: 0.52, exposure: 1.12, bloom: 0.6, vignette: 0.8 },
+    mood: { coolPower: 1.20, fogNear: 16, fogFar: 130, accent: '#4bb8f5', ambient: 0.56, density: 0.70, light: 1.22, accentPower: 0.56, exposure: 1.04, bloom: 0.46, vignette: 0.94 },
   }),
   // The handover. Violet is the hinge between the opening's cyan and the
   // crimson the rest of the journey runs on — going straight from one to the

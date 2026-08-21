@@ -25,6 +25,7 @@ import EclipseFlash from './components/EclipseFlash'
 import SoundToggle from './components/SoundToggle'
 import VoiceControl from './components/VoiceControl'
 import { usePrefersReducedMotion } from './hooks/usePrefersReducedMotion'
+import { useWorldStore } from './state/worldStore'
 
 import './App.css'
 import './index.css'
@@ -94,12 +95,46 @@ function App() {
     () => typeof window !== 'undefined' && sessionStorage.getItem('safia-os-booted') === 'true'
   )
 
+  const setBootComplete = useWorldStore((s) => s.setBootComplete)
+
   useEffect(() => {
     document.body.style.overflow = booted ? '' : 'hidden'
     return () => {
       document.body.style.overflow = ''
     }
   }, [booted])
+
+  /**
+   * Hand the arrival over to the world.
+   *
+   * The boot overlay is a point of light in the dark; the world's awakening
+   * opens on a point of light in the dark, at depth. They are the same beat,
+   * and the only thing keeping them from reading as one continuous event was
+   * that the world's half started under the overlay and was half over by the
+   * time anyone could see it. The ignition ramp is held at zero until this
+   * fires — see worldStore's `bootComplete`.
+   *
+   * THE TRIGGER IS THE BOOT STATE ITSELF, NOT A TIMER.
+   *
+   * There is an authoritative answer to "has the overlay finished" — `booted`,
+   * which BootSequence sets through its own completion callback and which
+   * returning visitors start the session already holding. Waiting out the
+   * overlay's exit fade on a setTimeout on top of that would be a second,
+   * weaker source of truth for something already known, and it would drift
+   * the moment the fade duration changed.
+   *
+   * The overlap with that fade is not a problem to be waited out anyway — it
+   * is the handover. The overlay leaves over 0.5s while the beacon's core
+   * comes up between ~0.15s and ~1.3s, so the overlay's point of light
+   * cross-dissolves into the world's point of light at depth. One light, two
+   * renderings of it, and no frame where neither is on screen.
+   *
+   * `setBootComplete` is idempotent, so this cannot re-fire the arrival on a
+   * re-render or a route change.
+   */
+  useEffect(() => {
+    if (booted) setBootComplete()
+  }, [booted, setBootComplete])
 
   // Stable identity so BootSequence's phase timer is never reset by a re-render.
   const handleBootComplete = useCallback(() => {

@@ -11,8 +11,13 @@ import Wordmark from '../components/ui/Wordmark'
  * It used to mount its own HeroScene, but the persistent world behind the whole
  * document now renders the core at station 0 — keeping both would mean two
  * WebGL contexts drawing the same object, one of them boxed inside a section
- * while the other travels. The scrims below stay, because the text still needs
- * to hold contrast over a live environment.
+ * while the other travels.
+ *
+ * The scrim below stays but is now a SAFETY NET rather than the mechanism.
+ * Contrast under the type is primarily held by the world itself: the sky
+ * shader reads the measured reading column and dims itself inside it, so the
+ * environment cannot light the words no matter where its source drifts. See
+ * the content-aware block in Atmosphere.jsx.
  */
 const Hero = () => {
   return (
@@ -20,32 +25,52 @@ const Hero = () => {
       id="hero"
       className="relative min-h-screen flex items-center overflow-hidden station station--clear"
     >
-      {/* LEGIBILITY SCRIM — now NAVY, not near-black.
-          The scrim covers the largest single area of the opening frame, so its
-          colour is effectively the page's background colour, and at
-          rgba(8,8,11,·) that was flat black across most of the width — the one
-          thing this direction rules out. Tinting it deep navy costs nothing in
-          contrast (the alpha is unchanged) and turns the dead half of the
-          frame into atmosphere the 3D layers can sit inside.
+      {/* LEGIBILITY SCRIM — now much lighter, because it is no longer the
+          thing doing the work.
 
-          The second layer is the counterpart: a faint cool bloom bottom-left,
-          so the darkest corner still has a light source in it rather than
-          falling to a single value. */}
+          It used to be a near-opaque navy panel (0.86 alpha) across the left
+          of the frame, sized for the worst case of a very bright world behind
+          it. That world is gone: the sky is graded near-black in the opening
+          and, more to the point, it now DIMS ITSELF inside the measured
+          reading column — see the content-aware block in Atmosphere.jsx's sky
+          shader. Two systems solving the same problem meant the left half of
+          the hero was a flat grey rectangle with a 3D scene visible only on
+          the right, which is most of what made the composition read as a
+          template: text panel, decoration panel.
+
+          What remains is a genuine safety net rather than the primary
+          mechanism — enough to hold contrast if the world fails to mount, is
+          mid-ignition, or is running on the CSS tier, and light enough that
+          the environment reads as continuous behind the type. */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute inset-0 hidden md:block bg-[linear-gradient(to_right,rgba(6,13,30,0.86)_0%,rgba(8,17,38,0.66)_36%,rgba(10,22,46,0.08)_64%,transparent_100%)]" />
-        <div className="absolute inset-0 md:hidden bg-[linear-gradient(to_bottom,rgba(7,15,32,0.04)_0%,rgba(7,15,32,0.16)_22%,rgba(6,13,30,0.82)_34%,rgba(6,13,30,0.9)_55%)]" />
-        {/* Two coloured bounces rather than one. The scrim has to darken the
-            text column, but a darkened area with no colour in it is a grey
-            panel — these put a cool source under the copy and a violet one
-            behind the wordmark, so the "dark" half of the frame is still lit. */}
-        <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_10%_92%,rgba(46,140,215,0.22)_0%,rgba(24,72,140,0.07)_40%,transparent_72%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(70%_55%_at_30%_28%,rgba(112,72,206,0.16)_0%,transparent_66%)]" />
+        <div className="absolute inset-0 hidden md:block bg-[linear-gradient(to_right,rgba(3,6,14,0.62)_0%,rgba(4,9,20,0.38)_34%,rgba(5,11,24,0.05)_62%,transparent_100%)]" />
+        <div className="absolute inset-0 md:hidden bg-[linear-gradient(to_bottom,rgba(3,6,14,0.06)_0%,rgba(3,6,14,0.14)_22%,rgba(3,6,14,0.66)_34%,rgba(3,6,14,0.78)_55%)]" />
+        {/* One cool bounce under the copy, so the shadow side of the frame has
+            colour in it rather than being a dead value. Halved from the two
+            pools that were here: over a near-black world they were adding a
+            visible haze to the exact area the type sits in. */}
+        <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_10%_94%,rgba(46,140,215,0.10)_0%,rgba(24,72,140,0.03)_42%,transparent_74%)]" />
       </div>
 
       <div className="relative z-10 w-full max-w-6xl mx-auto px-6 md:px-10">
-        {/* Entrance cascade — the hero is already in view, so this plays on mount
-            rather than waiting for a scroll trigger. */}
-        <RevealGroup className="max-w-xl text-center md:text-left mt-56 md:mt-0" stagger={0.11} delay={0.15} data-safe>
+        {/* IDENTITY EMERGES FROM THE ENVIRONMENT, NOT BEFORE IT.
+
+            The cascade used to start at 0.15s, which put the name on screen
+            while the world behind it was still black — so the copy was not
+            emerging from anything, it was a page loading in front of a canvas
+            that had not started yet. It now lands as the sky's source comes
+            up (around ignition 0.20), which is the beat the brief asks for:
+            darkness, a point of light, the light strengthening, and the
+            identity resolving in the space that light just revealed.
+
+            It is deliberately NOT held until the awakening finishes. The
+            environment goes on assembling for another four seconds after
+            this, and making someone wait that long to read a name would be
+            spectacle bought with usability. Arriving mid-sequence is also the
+            better shot: the copy resolves while the world is still resolving
+            around it, so the two feel like one event rather than a curtain
+            raise followed by a headline. */}
+        <RevealGroup className="max-w-xl text-center md:text-left mt-56 md:mt-0" stagger={0.13} delay={1.45} data-safe>
           <RevealItem className="flex items-center justify-center md:justify-start gap-3 mb-8">
             <span className="w-1.5 h-1.5 rounded-full bg-crimson" />
             <span className="text-crimson-text text-[10px] md:text-xs font-mono tracking-[0.4em]">
@@ -61,7 +86,7 @@ const Hero = () => {
           <RevealItem y={0} duration={0.01}>
             <Wordmark
               className="text-display-lg md:text-display-xl lg:text-[5.75rem] font-display font-bold mb-8 text-off-white"
-              delay={0.25}
+              delay={1.6}
             />
           </RevealItem>
 
@@ -82,7 +107,10 @@ const Hero = () => {
           {/* The one line of prose in the hero, resolving character by character
               as the visitor scrolls into it rather than arriving finished. */}
           <RevealItem className="mb-12">
-            <ScrollText className="text-titanium text-sm md:text-base max-w-md mx-auto md:mx-0 leading-relaxed">
+            <ScrollText
+              className="text-titanium text-sm md:text-base max-w-md mx-auto md:mx-0 leading-relaxed"
+              floor={0.58}
+            >
               {personalBrand.tagline}
             </ScrollText>
           </RevealItem>

@@ -18,6 +18,26 @@ export const useWorldStore = create((set) => ({
   worldReady: false,
   setWorldReady: (worldReady) => set({ worldReady }),
 
+  /**
+   * Has the boot overlay finished and uncovered the page?
+   *
+   * THE TWO ARRIVALS ARE ONE ARRIVAL. The boot sequence and the world's
+   * ignition ramp were both running from mount, which meant they were two
+   * separate openings playing at the same time — the world spent the first
+   * four and a half seconds of its awakening waking up UNDERNEATH a full
+   * screen overlay, and by the time the overlay cleared the environment was
+   * already most of the way lit. The visitor therefore saw a point of light
+   * in the dark (boot), and then, abruptly, a finished world.
+   *
+   * The driver now holds the ramp at zero until this flips, so the boot
+   * overlay's point of light hands directly to the beacon's point of light at
+   * depth and the whole thing reads as one continuous event. Returning
+   * visitors skip the overlay, so this is set true on mount for them and the
+   * awakening simply starts immediately.
+   */
+  bootComplete: false,
+  setBootComplete: () => set((s) => (s.bootComplete ? s : { bootComplete: true })),
+
   /** id of the 3D object under the cursor, or null. */
   hovered: null,
   setHovered: (hovered) => set((s) => (s.hovered === hovered ? s : { hovered })),
@@ -48,3 +68,17 @@ export const useWorldStore = create((set) => ({
   micRequest: 0,
   requestMic: () => set((s) => ({ micRequest: s.micRequest + 1 })),
 }))
+
+/**
+ * Diagnostic handle, matching `__world`, `__safeZone`, `__artifact` and
+ * `__scrollStores`.
+ *
+ * `bootComplete` is the gate the whole arrival hangs off, and it was the one
+ * piece of that chain with no way to observe it from outside — which made
+ * "does the boot overlay actually hand over to the awakening" a question that
+ * could only be answered by reading the source and hoping. DEV only; nothing
+ * in the app reads this.
+ */
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  window.__worldStore = useWorldStore
+}
