@@ -23,6 +23,7 @@
 
 let ctx = null
 let master = null
+let limiter = null
 let enabled = false
 let reduced = false
 
@@ -60,10 +61,29 @@ export async function enableAudio() {
     if (!AudioCtx) return false
     ctx = new AudioCtx()
     master = ctx.createGain()
-    // Quiet by design. This is texture under a visual event, not a sound
-    // effect the visitor is meant to notice on its own.
-    master.gain.value = 0.16
-    master.connect(ctx.destination)
+
+    // LOUD, BUT THROUGH A LIMITER RATHER THAN BY TURNING IT UP.
+    //
+    // This started at 0.16 — texture under a visual event. It is now the sound
+    // of the cut itself, and a cut you can barely hear is not a cut. The naive
+    // way to get there is a bigger master gain, which on the transients this
+    // synthesises (a crack peaks within 4ms) just clips: the sum of a crack,
+    // an impact and a whoosh landing on the same frame goes well past 1.0 and
+    // the browser hard-clips it into a click.
+    //
+    // A compressor with a fast attack and a hard ratio catches those peaks and
+    // lets the average level sit much higher than the peaks would otherwise
+    // allow. That is how loud is actually made, and it is why this can be three
+    // times the old level without distorting.
+    limiter = ctx.createDynamicsCompressor()
+    limiter.threshold.value = -8
+    limiter.knee.value = 2
+    limiter.ratio.value = 14
+    limiter.attack.value = 0.002
+    limiter.release.value = 0.14
+
+    master.gain.value = 0.62
+    master.connect(limiter).connect(ctx.destination)
   }
   if (ctx.state === 'suspended') await ctx.resume()
   enabled = true
@@ -97,7 +117,7 @@ export function playCrack(intensity = 1) {
 
   const gain = ctx.createGain()
   gain.gain.setValueAtTime(0.0001, t)
-  gain.gain.exponentialRampToValueAtTime(0.35 + i * 0.65, t + 0.004)
+  gain.gain.exponentialRampToValueAtTime(0.55 + i * 0.95, t + 0.004)
   gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18 + i * 0.22)
 
   src.connect(band).connect(gain).connect(master)
@@ -147,7 +167,7 @@ export function playImpact() {
 
   const gain = ctx.createGain()
   gain.gain.setValueAtTime(0.0001, t)
-  gain.gain.exponentialRampToValueAtTime(0.9, t + 0.02)
+  gain.gain.exponentialRampToValueAtTime(1.6, t + 0.02)
   gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.7)
 
   osc.connect(gain).connect(master)
@@ -155,11 +175,59 @@ export function playImpact() {
   osc.stop(t + 0.8)
 }
 
+/**
+ * THE APPROACH. A rising, narrowing band of noise under the closing phase.
+ *
+ * The eclipse used to arrive without warning, which is the one thing an
+ * approach should never do — the whole point of watching something come from
+ * 300 units away is the anticipation, and anticipation is carried by sound far
+ * better than by a shape that is four pixels wide. This rises with the object
+ * and is cut off by the impact, so the impact lands as a release rather than as
+ * another event.
+ *
+ * `intensity` is the transit's own charge, so it tightens and brightens as the
+ * object closes rather than being a fixed cue played at a fixed moment.
+ */
+export function playApproach(intensity = 1, seconds = 1.6) {
+  if (!enabled || !ctx || reduced) return
+  const i = Math.max(0, Math.min(1, intensity))
+  const t = now()
+
+  const src = ctx.createBufferSource()
+  // Flat noise here, not the decaying buffer: this one has to SWELL, and a
+  // buffer with decay baked in fights the envelope below.
+  const len = Math.max(1, Math.floor(ctx.sampleRate * seconds))
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
+  const data = buf.getChannelData(0)
+  for (let k = 0; k < len; k++) data[k] = Math.random() * 2 - 1
+  src.buffer = buf
+
+  // Narrowing as it rises. A wide band that merely gets louder reads as hiss;
+  // resonance climbing toward a pitch reads as something arriving.
+  const band = ctx.createBiquadFilter()
+  band.type = 'bandpass'
+  band.Q.setValueAtTime(0.8, t)
+  band.Q.linearRampToValueAtTime(6 + i * 8, t + seconds)
+  band.frequency.setValueAtTime(180, t)
+  band.frequency.exponentialRampToValueAtTime(900 + i * 1400, t + seconds)
+
+  const gain = ctx.createGain()
+  gain.gain.setValueAtTime(0.0001, t)
+  gain.gain.exponentialRampToValueAtTime(0.28 + i * 0.5, t + seconds * 0.92)
+  // Cut, not faded. The impact is the next sound and it needs the room.
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds)
+
+  src.connect(band).connect(gain).connect(master)
+  src.start(t)
+  src.stop(t + seconds + 0.05)
+}
+
 export function disposeAudio() {
   if (ctx) {
     ctx.close()
     ctx = null
     master = null
+    limiter = null
   }
   enabled = false
 }

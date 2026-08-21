@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { scrollState } from '../state/scrollStore'
 import { chargedInfluenceAt } from './cursorFieldState'
 import { artifactState } from './artifactState'
-import { playCrack, playImpact, playReassemble } from '../lib/crackAudio'
+import { playApproach, playCrack, playImpact, playReassemble } from '../lib/crackAudio'
 import { timelineAt, clamp01, span, easeIn } from './transitTimeline'
 
 /**
@@ -227,6 +227,7 @@ export default function Artifact({ reducedMotion = false }) {
   const lastFracture = useRef(0)
   const crackCooldown = useRef(0)
   const impactFired = useRef(false)
+  const approachFired = useRef(false)
   // Which transit is currently loaded into the single instance below.
   const formRef = useRef(-1)
 
@@ -327,7 +328,13 @@ export default function Artifact({ reducedMotion = false }) {
         artifactState.transit = 0
       }
       if (flashRef.current) flashRef.current.visible = false
+      // Both one-shots are armed again the moment the object leaves the frame.
+      // Resetting these only at the form handover meant a visitor who scrolled
+      // back up and re-approached the SAME boundary got the whole approach in
+      // silence — the transit was live, but its cues had already been spent on
+      // the previous pass through it.
       impactFired.current = false
+      approachFired.current = false
       return
     }
     g.visible = true
@@ -357,6 +364,16 @@ export default function Artifact({ reducedMotion = false }) {
         ringBRef.current.rotation.set(Math.PI / 2.35, form.tiltB, 0)
       }
       if (lightRef.current) lightRef.current.color.set(form.light)
+      // One-shots belong to a transit, not to the session.
+      impactFired.current = false
+      approachFired.current = false
+    }
+
+    // The approach swell, fired once as the object enters its closing phase.
+    // Timed so it is still rising when the eclipse hits and the impact cuts it.
+    if (!approachFired.current && s > -0.45) {
+      playApproach(T.charge, 1.6)
+      approachFired.current = true
     }
 
     // 0..1 across the whole event.

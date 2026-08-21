@@ -1,5 +1,6 @@
 import React from 'react'
 import { RevealGroup, RevealItem } from './Reveal'
+import ScrollText from './ScrollText'
 
 /**
  * Shared section masthead for the SAFIA.OS system UI.
@@ -31,12 +32,13 @@ const SectionHeader = ({ index, label, title, description }) => (
       <span className="h-px flex-1 bg-metal/40" />
     </RevealItem>
 
+    {/* The description resolves as it is scrolled through, so arriving at a
+        section and reading its opening line are the same gesture. */}
     {description && (
-      <RevealItem
-        as="p"
-        className="mt-6 text-titanium text-sm md:text-base max-w-2xl leading-relaxed"
-      >
-        {description}
+      <RevealItem className="mt-6">
+        <ScrollText className="text-titanium text-sm md:text-base max-w-2xl leading-relaxed">
+          {description}
+        </ScrollText>
       </RevealItem>
     )}
   </RevealGroup>

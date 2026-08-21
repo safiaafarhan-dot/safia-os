@@ -1,5 +1,6 @@
 import React from 'react'
 import { personalBrand } from '../data'
+import ScrollText from '../components/ui/ScrollText'
 import { Magnetic } from '../components/ui/Magnetic'
 import { RevealGroup, RevealItem } from '../components/ui/Reveal'
 import Wordmark from '../components/ui/Wordmark'
@@ -78,11 +79,12 @@ const Hero = () => {
             </div>
           </RevealItem>
 
-          <RevealItem
-            as="p"
-            className="text-titanium text-sm md:text-base max-w-md mx-auto md:mx-0 mb-12 leading-relaxed"
-          >
-            {personalBrand.tagline}
+          {/* The one line of prose in the hero, resolving character by character
+              as the visitor scrolls into it rather than arriving finished. */}
+          <RevealItem className="mb-12">
+            <ScrollText className="text-titanium text-sm md:text-base max-w-md mx-auto md:mx-0 leading-relaxed">
+              {personalBrand.tagline}
+            </ScrollText>
           </RevealItem>
 
           <RevealItem className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
