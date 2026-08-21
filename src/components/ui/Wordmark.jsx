@@ -80,13 +80,14 @@ const Wordmark = ({ text = 'SAFIA.OS', accentChar = '.', className = '', delay =
     <h1 className={`relative ${className}`} aria-label={text}>
       {/* THE GLYPHS. Each converges from its own offset.
 
-          `data-identity` is on THIS span, not on the <h1>, and the distinction
-          matters. The h1 is block-level, so its box is the full width of the
-          reading column — anchoring the 3D cloud to it made the particles span
-          the whole measure instead of the letters, roughly two and a half
-          times too wide. This span is inline-block, so its box hugs the actual
-          glyphs, which is the rectangle the particle form has to land on.
-          See world/IdentityForm.jsx. */}
+          `data-identity` marks the glyph box for world/IdentityForm.jsx, which
+          is currently NOT MOUNTED — see the note in WorldCanvas.jsx. The
+          attribute is inert and kept deliberately: it is the anchor that layer
+          needs, and it records why it must be on THIS span rather than the
+          <h1>. The h1 is block-level, so its box is the full width of the
+          reading column; anchoring to it made the cloud span the whole measure
+          instead of the letters. This span is inline-block, so its box hugs
+          the actual glyphs. */}
       <span
         className="relative inline-block"
         aria-hidden="true"
