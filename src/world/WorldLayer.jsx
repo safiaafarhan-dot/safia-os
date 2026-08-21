@@ -52,6 +52,22 @@ const WorldLayer = () => {
       if (!cancelled) setMountWorld(true)
     }
 
+    // Diagnostic switch: ?awake=1 mounts the world immediately.
+    //
+    // The pairing with useWorldDriver's ?awake handling is deliberate — one
+    // switch, one meaning: "an automated client is driving this page, so drop
+    // the optimisations that assume a human with a visible tab." Idle
+    // deferral is the other half of that. requestIdleCallback in a background
+    // tab is throttled hard enough that even its 2200ms timeout can take tens
+    // of seconds to land, so under automation the world simply never arrives
+    // and the page screenshots as a bare CSS gradient.
+    if (new URLSearchParams(window.location.search).has('awake')) {
+      start()
+      return () => {
+        cancelled = true
+      }
+    }
+
     // requestIdleCallback yields until the browser has nothing better to do,
     // which is exactly the guarantee needed to protect first paint. The timeout
     // stops the world from never arriving on a permanently busy main thread.

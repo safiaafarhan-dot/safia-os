@@ -69,6 +69,43 @@
   100% { transform: translateY(2000%); opacity: 0; }
 }
 
+/* THE WORDMARK PULSE — see components/ui/Wordmark.jsx.
+   A narrow specular band travelling through the letterforms, clipped to the
+   glyphs so it adds highlight without touching the silhouette.
+
+   The gradient is 300% wide and travels from one end to the other, which is
+   what keeps the band NARROW relative to the word while still crossing all of
+   it. The long dwell at 100% is deliberate: the sweep occupies about a second
+   and a half of a twelve second cycle, so it reads as a periodic event rather
+   than as a shimmer that is always running. */
+@keyframes wordmarkPulse {
+  0%        { background-position: 300% 0; }
+  12%       { background-position: -80% 0; }
+  100%      { background-position: -80% 0; }
+}
+
+.wordmark-pulse {
+  background-image: linear-gradient(
+    100deg,
+    transparent 38%,
+    rgba(160, 232, 255, 0.55) 47%,
+    rgba(226, 248, 255, 0.92) 50%,
+    rgba(160, 232, 255, 0.55) 53%,
+    transparent 62%
+  );
+  background-size: 300% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: wordmarkPulse 12s var(--ease-out-soft) infinite;
+  animation-delay: 2.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wordmark-pulse { display: none; }
+}
+
 * {
   box-sizing: border-box;
 }

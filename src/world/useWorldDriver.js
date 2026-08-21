@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { setScrollState, useScrollStore } from '../state/scrollStore'
 import { useWorldStore } from '../state/worldStore'
+import { cursorField } from './cursorFieldState'
 import { STATION_IDS, STATIONS } from './stations'
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
@@ -137,11 +138,41 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
       raf = requestAnimationFrame(tick)
     }
 
-    const onPointerMove = (e) => {
+    const setPointer = (clientX, clientY) => {
       setScrollState({
-        pointerX: (e.clientX / window.innerWidth) * 2 - 1,
-        pointerY: -((e.clientY / window.innerHeight) * 2 - 1),
+        pointerX: (clientX / window.innerWidth) * 2 - 1,
+        pointerY: -((clientY / window.innerHeight) * 2 - 1),
       })
+    }
+
+    const onPointerMove = (e) => setPointer(e.clientX, e.clientY)
+
+    /**
+     * TOUCH IS THE ENVIRONMENTAL FORCE ON MOBILE.
+     *
+     * Pointer events alone do not cover this. A touch drag emits pointermove
+     * only until the browser decides the gesture is a scroll, at which point it
+     * fires pointercancel and stops — so on a phone the single most common
+     * interaction, dragging up the page, drove the cursor field for a few
+     * frames and then went dead. Since the field is what makes the world
+     * respond to a visitor at all, that left mobile with a world that reacted
+     * to nothing.
+     *
+     * Listening to touchmove separately keeps the field alive for the whole
+     * gesture, including while the page is scrolling under it. Passive, so it
+     * never blocks or delays that scroll.
+     */
+    const onTouch = (e) => {
+      const t = e.touches && e.touches[0]
+      if (t) setPointer(t.clientX, t.clientY)
+    }
+
+    // A finger leaving the glass has no position, unlike a mouse which is
+    // always somewhere. Releasing the field rather than freezing it is what
+    // makes the environment settle after a gesture instead of staying
+    // permanently disturbed at the last place that was touched.
+    const onTouchEnd = () => {
+      cursorField.dwell = 0
     }
 
     // Re-measure on anything that can reflow the page. Sections mount lazily
@@ -153,7 +184,22 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
         : null
     if (observer) observer.observe(document.body)
 
+    /**
+     * Diagnostic: ?awake=1 keeps the loop running while the tab is hidden.
+     *
+     * Pausing on hidden is correct and stays the default — a backgrounded tab
+     * has no business burning a core on a world nobody is looking at. But it
+     * makes the world untestable under browser automation, where the driven
+     * tab is ALWAYS hidden: the camera freezes at whatever station it last
+     * saw, and every screenshot then shows the hero's DOM in front of some
+     * completely different part of the journey. That is a very convincing
+     * bug report about a world that is in fact fine.
+     */
+    const stayAwake =
+      typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('awake')
+
     const onVisibility = () => {
+      if (stayAwake) return
       if (document.hidden) {
         running = false
         cancelAnimationFrame(raf)
@@ -172,6 +218,9 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
 
     window.addEventListener('resize', onResize)
     window.addEventListener('pointermove', onPointerMove, { passive: true })
+    window.addEventListener('touchstart', onTouch, { passive: true })
+    window.addEventListener('touchmove', onTouch, { passive: true })
+    window.addEventListener('touchend', onTouchEnd, { passive: true })
     document.addEventListener('visibilitychange', onVisibility)
     raf = requestAnimationFrame(tick)
 
@@ -182,6 +231,9 @@ export function useWorldDriver({ reducedMotion = false } = {}) {
       observer?.disconnect()
       window.removeEventListener('resize', onResize)
       window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('touchstart', onTouch)
+      window.removeEventListener('touchmove', onTouch)
+      window.removeEventListener('touchend', onTouchEnd)
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [reducedMotion])

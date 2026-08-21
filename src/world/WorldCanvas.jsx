@@ -6,9 +6,11 @@ import Atmosphere from './Atmosphere'
 import Crystals from './Crystals'
 import CursorField from './CursorField'
 import DeepSpace from './DeepSpace'
+import DimensionalForms from './DimensionalForms'
 import Encounters from './Encounters'
 import EnergyField from './EnergyField'
 import GlassAssembly from './GlassAssembly'
+import NeuralField from './NeuralField'
 import CameraRig, { WorldMood } from './CameraRig'
 import LightRig from './LightRig'
 import WorldPointer from './WorldPointer'
@@ -32,9 +34,13 @@ const flag = (name) =>
  * resolution further if the machine still can't hold frame rate.
  */
 const TIERS = {
-  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, blackHole: true, bhDebris: 900, galaxy: 5000, nebulae: 6, singularities: true, foreground: 14, beltRocks: 220, clusterStars: 900, shardCount: 90, floaters: 260, cursorMotes: 300, dustVeil: 700, crystals: 16, energyTrails: 100, dpr: [1, 1.75] },
-  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, blackHole: true, bhDebris: 450, galaxy: 2400, nebulae: 4, singularities: true, foreground: 9, beltRocks: 120, clusterStars: 450, shardCount: 48, floaters: 140, cursorMotes: 170, dustVeil: 360, crystals: 10, energyTrails: 60, dpr: [1, 1.4] },
-  low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, grade: false, blackHole: true, bhDebris: 260, galaxy: 900, nebulae: 3, singularities: false, foreground: 5, beltRocks: 50, clusterStars: 180, shardCount: 20, floaters: 60, cursorMotes: 80, dustVeil: 150, crystals: 6, energyTrails: 30, dpr: 1 },
+  high: { dust: 2200, stars: 900, strata: 200, fragments: 80, dustScale: 1, grade: true, blackHole: true, bhDebris: 900, galaxy: 5000, nebulae: 6, singularities: true, foreground: 14, beltRocks: 220, clusterStars: 900, shardCount: 90, floaters: 260, cursorMotes: 300, dustVeil: 700, crystals: 16, energyTrails: 100, neurons: 92, forms: true, dpr: [1, 1.75] },
+  mid: { dust: 1100, stars: 460, strata: 110, fragments: 40, dustScale: 0.9, grade: true, blackHole: true, bhDebris: 450, galaxy: 2400, nebulae: 4, singularities: true, foreground: 9, beltRocks: 120, clusterStars: 450, shardCount: 48, floaters: 140, cursorMotes: 170, dustVeil: 360, crystals: 10, energyTrails: 60, neurons: 58, forms: true, dpr: [1, 1.4] },
+  // The forms stay on at the low tier even though almost everything else is
+  // cut. They are four draw calls, and they are the only thing standing
+  // between a phone and an empty gradient — exactly the "overwhelmingly black
+  // home page" the brief rules out.
+  low: { dust: 420, stars: 220, strata: 48, fragments: 16, dustScale: 0.8, grade: false, blackHole: true, bhDebris: 260, galaxy: 900, nebulae: 3, singularities: false, foreground: 5, beltRocks: 50, clusterStars: 180, shardCount: 20, floaters: 60, cursorMotes: 80, dustVeil: 150, crystals: 6, energyTrails: 30, neurons: 34, forms: true, dpr: 1 },
 }
 
 const pickTier = () => {
@@ -91,7 +97,13 @@ const WorldCanvas = ({ reducedMotion = false }) => {
       }}
       onCreated={(state) => {
         const { gl } = state
-        gl.setClearColor(new THREE.Color('#04060b'), 1)
+        // Deep navy, not near-black. The brief is explicit that the home page
+        // must not be overwhelmingly black, and the clear colour is the floor
+        // every other value sits on — at #04060b the darkest 60% of the frame
+        // was a single flat value and no amount of atmosphere above it read as
+        // depth. A lifted, saturated ground gives the fog and the forms
+        // something to separate FROM.
+        gl.setClearColor(new THREE.Color('#070d1c'), 1)
         gl.toneMapping = THREE.ACESFilmicToneMapping
         gl.toneMappingExposure = 1.05
         // Dev-only handle for inspecting the world from the console. Stripped
@@ -108,7 +120,7 @@ const WorldCanvas = ({ reducedMotion = false }) => {
       {/* Fog is a desaturated blue-grey, not near-black. Fogging to black makes
           distance read as "nothing there"; fogging to a lit haze reads as depth
           and is what gives the corridor its sense of scale. */}
-      <fog ref={fogRef} attach="fog" args={['#141a26', 9, 62]} />
+      <fog ref={fogRef} attach="fog" args={['#12203b', 9, 62]} />
 
       <LightRig reducedMotion={reducedMotion} />
 
@@ -139,6 +151,20 @@ const WorldCanvas = ({ reducedMotion = false }) => {
           glass to stone rather than showing everything at once. */}
       <Crystals count={effectiveTier.crystals} reducedMotion={reducedMotion} />
       <EnergyField count={effectiveTier.energyTrails} reducedMotion={reducedMotion} />
+
+      {/* THE ABSTRACT DIMENSION. Four large translucent structures that replace
+          the ringed planet the opening used to be built around — an incomplete
+          shell, a ring around nothing, a lattice fragment and a set of floating
+          planes. Nothing here resolves into a nameable object, which is what
+          keeps the first impression off "space portfolio". */}
+      <DimensionalForms enabled={effectiveTier.forms} />
+
+      {/* THE AI/ML IDENTITY, expressed as behaviour rather than iconography:
+          data points that cluster, connections that form from proximity, one
+          node at a time reassigning itself, and inference pulses that
+          propagate hop by hop through the graph. Hero band only — Skills has
+          its own constellation for the named-technology version of this. */}
+      <NeuralField count={effectiveTier.neurons} reducedMotion={reducedMotion} />
 
       {/* The one scripted event in the opening: a structure that gathers itself
           out of loose shards, holds while energy runs through it, and comes

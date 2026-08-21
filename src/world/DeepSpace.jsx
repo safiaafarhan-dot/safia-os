@@ -598,7 +598,16 @@ const DeepSpace = ({ tier }) => {
       <Nebulae clouds={clouds} noise={noise} />
 
       <Planet position={[-235, -84, -690]} radius={30} tint="#b3122e" ring={false} from={2.4} />
-      <Planet position={[210, 85, -560]} radius={46} tint="#8ea6c8" ring />
+      {/* Held back to the WORLDS band, and this is the single most important
+          gate in the file. A banded body with a tilted ring is Saturn — the
+          most recognisable object in the sky — and it was the dominant shape
+          in the opening frame, which made the first impression "space
+          portfolio" before a word of the page had been read. The brief rules
+          out both that impression and recognisable objects generally. It is a
+          good object; it just cannot be the thing that introduces the site.
+          DimensionalForms now holds that part of frame with structures that
+          resolve into nothing nameable. */}
+      <Planet position={[210, 85, -560]} radius={46} tint="#8ea6c8" ring from={3.1} />
 
       {tier.singularities && (
         <>

@@ -42,10 +42,25 @@ const station = (i, id, { x = 0, y = 0, lookX = 0, lookY = 0, mood }) => ({
  * Every station used to carry its own hue — violet, teal, amber, steel blue.
  * Eight accent colours across one scroll is what made the environment read as
  * generic sci-fi: nothing owned the frame, and the composite of all those
- * veils was a muddy magenta. The accent is now CRIMSON everywhere, with cold
- * steel as its only counter. Stations differ by EXPOSURE, DENSITY, LENS and
- * FOG instead of by hue — which is how photography creates variety, and why
+ * veils was a muddy magenta. The palette was cut to CRIMSON with cold steel as
+ * its only counter, and stations differ by EXPOSURE, DENSITY, LENS and FOG
+ * rather than by hue — which is how photography creates variety, and why
  * restraint reads as expensive.
+ *
+ * THE OPENING IS NOW THE EXCEPTION, AND IT IS A DELIBERATE ONE.
+ * ------------------------------------------------------------
+ * Stations 0-1 run ELECTRIC BLUE / CYAN dominant over deep navy; crimson is
+ * demoted to a controlled secondary that survives only in the wordmark's full
+ * stop, the status dot and a low rim light. From station 2 the accent warms
+ * back through violet into the crimson the rest of the journey is built on.
+ *
+ * That is not a second palette — it is the SAME restraint applied to a
+ * different argument. The home page has to read as an abstract digital
+ * dimension that computes, and computation reads cold: cyan is the colour of
+ * something powered and thinking, crimson is the colour of something warned
+ * or wounded. Crimson dominance in the opening was fighting the one thing the
+ * hero most needs to say. Keeping a trace of it is what stops the handover to
+ * station 2 looking like two different websites bolted together.
  *
  * fogNear/fogFar  world units from the camera
  * accent          the emissive signal colour for that depth band
@@ -57,17 +72,25 @@ const station = (i, id, { x = 0, y = 0, lookX = 0, lookY = 0, mood }) => ({
  * vignette        post-grade corner falloff
  */
 export const STATIONS = [
+  // THE OPENING. Cyan accent, high cool power, lifted ambient and a long fog
+  // reach — the frame should read as a deep lit volume, not as a dark room
+  // with objects in it. Vignette is pulled well back for the same reason: a
+  // heavy vignette is what was making the corners read as flat black.
   station(0, 'hero', {
     x: 0, y: 1.0, lookX: 0.0, lookY: 0.6,
-    mood: { coolPower: 0.92, fogNear: 14, fogFar: 118, accent: '#ff2d4d', ambient: 0.74, density: 0.82, light: 1.28, accentPower: 0.66, exposure: 1.16, bloom: 0.62, vignette: 0.78 },
+    mood: { coolPower: 1.55, fogNear: 16, fogFar: 150, accent: '#3ad4ff', ambient: 0.98, density: 0.72, light: 1.34, accentPower: 0.58, exposure: 1.18, bloom: 0.58, vignette: 0.58 },
   }),
   station(1, 'about', {
     x: -7, y: 4.5, lookX: -0.5, lookY: 0.9,
-    mood: { coolPower: 1.15, fogNear: 15, fogFar: 124, accent: '#b3122e', ambient: 0.84, density: 0.82, light: 1.3, accentPower: 0.5, exposure: 1.12, bloom: 0.62, vignette: 0.76 },
+    mood: { coolPower: 1.48, fogNear: 16, fogFar: 142, accent: '#4bb8f5', ambient: 0.96, density: 0.76, light: 1.32, accentPower: 0.52, exposure: 1.14, bloom: 0.6, vignette: 0.64 },
   }),
+  // The handover. Violet is the hinge between the opening's cyan and the
+  // crimson the rest of the journey runs on — going straight from one to the
+  // other across a single station boundary reads as a theme switch rather
+  // than as travel.
   station(2, 'skills', {
     x: 5, y: -4.0, lookX: 0.4, lookY: -0.4,
-    mood: { coolPower: 1.25, fogNear: 17, fogFar: 132, accent: '#ff2d4d', ambient: 0.82, density: 0.75, light: 1.55, accentPower: 0.74, exposure: 1.16, bloom: 0.7, vignette: 0.82 },
+    mood: { coolPower: 1.3, fogNear: 17, fogFar: 134, accent: '#9d6bf0', ambient: 0.86, density: 0.75, light: 1.52, accentPower: 0.7, exposure: 1.16, bloom: 0.68, vignette: 0.76 },
   }),
   station(3, 'experience', {
     x: 13, y: 2.0, lookX: 0.7, lookY: 0.3,

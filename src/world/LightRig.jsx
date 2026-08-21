@@ -65,8 +65,18 @@ export default function LightRig({ reducedMotion }) {
       keyRef.current.position.y += (7 + s.pointerSmoothY * 3.5 - keyRef.current.position.y) * ease
     }
 
+    // THE WARM/COOL BALANCE IS NOW A FUNCTION OF DEPTH.
+    //
+    // Both rims used to run at fixed intensities, which meant the crimson one
+    // was at full strength in the hero — and a crimson rim on every silhouette
+    // is most of what made the opening read warm no matter what the accent
+    // colour said. `warmth` ramps in across the first two stations, so the
+    // abstract dimension is edged almost purely cyan and the crimson arrives
+    // with the matter band it belongs to.
+    const warmth = THREE.MathUtils.smoothstep(s.station, 0.6, 2.6)
+
     if (rimRef.current) {
-      rimRef.current.intensity = 1.5 + s.energy * 1.0
+      rimRef.current.intensity = (0.28 + warmth * 1.32) * (1 + s.energy * 0.6)
     }
 
     if (coolRef.current) {
@@ -74,7 +84,8 @@ export default function LightRig({ reducedMotion }) {
       // silhouette is edged warm on one side and cool on the other. That single
       // relationship does more for perceived depth than any amount of extra
       // brightness, and it is what keeps the palette from collapsing into red.
-      coolRef.current.intensity = 2.6 + s.energy * 1.5
+      // Strongest in the opening, where it is carrying the frame alone.
+      coolRef.current.intensity = (4.4 - warmth * 1.7) + s.energy * 1.5
     }
 
     if (accentRef.current) {
