@@ -7,6 +7,7 @@ import { sampleMood } from './stations'
 import { blackHoleState } from './blackHoleState'
 import { shockwaveAt } from './transitTimeline'
 import { STATIONS } from './stations'
+import { safeZone } from './safeZone'
 
 /**
  * The photographic grade.
@@ -101,6 +102,10 @@ const finalFragment = /* glsl */ `
   // SIGNED radial smear under travel. Sign is the scroll direction, so
   // reversing streaks the other way.
   uniform float uStreak;
+  // The measured reading column in NDC (left, bottom, right, top), and how far
+  // the GLOW is pulled down inside it. See the note at the composite below.
+  uniform vec4  uColumn;
+  uniform float uColumnBloom;
 
   void main() {
     vec2 centre = vUv - 0.5;
@@ -199,7 +204,28 @@ const finalFragment = /* glsl */ `
       col = acc / total;
     }
 
-    col += texture2D(tBloom, lensUv).rgb * uBloom;
+    // BLOOM IS CONTENT-AWARE TOO.
+    //
+    // The sky already dims itself inside the measured reading column, but that
+    // happens before this point and bloom is ADDED after it — so glow was the
+    // one light in the chain that could still land on the type, and it is the
+    // worst offender because it is by definition the brightest thing in the
+    // frame smeared over the largest area. The contact form was the proof: a
+    // section of small labels, placeholders and hairline borders sitting under
+    // the hottest bloom in the journey, with the detail washed straight out of
+    // it.
+    //
+    // Same rectangle, same soft signed-distance falloff as the sky, so the two
+    // agree about where the words are. Attenuation is partial by design — the
+    // world has to stay visible behind the column, it just must not be
+    // brighter there than the text is.
+    vec2 bndc = vUv * 2.0 - 1.0;
+    vec2 bcentre = vec2(uColumn.x + uColumn.z, uColumn.y + uColumn.w) * 0.5;
+    vec2 bextent = vec2(uColumn.z - uColumn.x, uColumn.w - uColumn.y) * 0.5;
+    vec2 bq = abs(bndc - bcentre) - bextent;
+    float bsd = length(max(bq, 0.0)) + min(max(bq.x, bq.y), 0.0);
+    float bshade = 1.0 - smoothstep(-0.2, 0.5, bsd);
+    col += texture2D(tBloom, lensUv).rgb * uBloom * mix(1.0, uColumnBloom, bshade);
 
     // The front itself is luminous — compressed medium glowing as it is swept.
     // Additive and thin, so it reads as the edge of the blast rather than as a
@@ -323,6 +349,9 @@ export default function PostFX({ reducedMotion = false }) {
         uShockStrength: { value: 0 },
         uShockTint: { value: new THREE.Color('#bfe6ff') },
         uStreak: { value: 0 },
+        uColumn: { value: new THREE.Vector4(-1, -1, 1, 1) },
+        // 1 = glow untouched inside the column. Driven per-frame below.
+        uColumnBloom: { value: 1 },
       },
       depthTest: false,
       depthWrite: false,
@@ -464,6 +493,18 @@ export default function PostFX({ reducedMotion = false }) {
       shockColour.set(STATIONS[idx].mood.accent)
       u.uShockTint.value.lerp(shockColour, 0.25)
     }
+
+    // Hand the measured column to the glow attenuation. Read from the same
+    // keep-out volume the world's geometry and the sky already respect, so
+    // there is one answer to "where is the text" rather than three.
+    u.uColumn.value.set(safeZone.left, safeZone.bottom, safeZone.right, safeZone.top)
+    // Denser sections need more protection, and the column is measured, so
+    // "denser" is just "wider". A near full-bleed column (a phone) gets the
+    // lightest touch — blanketing the whole frame is the flat-black failure by
+    // another route.
+    const coverage = Math.min(1, (safeZone.right - safeZone.left) / 2)
+    const targetColumnBloom = THREE.MathUtils.lerp(0.42, 0.82, coverage)
+    u.uColumnBloom.value += (targetColumnBloom - u.uColumnBloom.value) * Math.min(1, delta * 2)
 
     // SPEED SMEARS THE OPTICS. Signed, so reversing streaks the other way.
     // Clamped hard: past about 0.1 the frame stops reading as a fast pan and

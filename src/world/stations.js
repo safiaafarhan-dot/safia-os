@@ -117,9 +117,22 @@ export const STATIONS = [
     x: -4, y: -6.0, lookX: -0.3, lookY: -0.5,
     mood: { coolPower: 0.66, fogNear: 15, fogFar: 100, accent: '#ff5a3c', ambient: 0.7, density: 0.85, light: 1.45, accentPower: 0.6, exposure: 1.15, bloom: 0.7, vignette: 0.96 },
   }),
+  // THE DESTINATION, AND IT IS THE QUIETEST GRADE IN THE JOURNEY.
+  //
+  // This station ran the highest bloom (0.9), the highest exposure (1.2) and
+  // the highest accent power (1.0) of all eight — over the one section that is
+  // a dense FORM. Bloom is added after everything else in the composite, so it
+  // sat on top of field labels, placeholder text and hairline borders and took
+  // the detail out of exactly the content that most needs to be read. It was
+  // also wrong for the story: the end of the journey is supposed to be the
+  // universe going quiet, and it was being photographed like the loudest
+  // moment in it.
+  //
+  // Graded down across the board, and the vignette goes UP so the falloff
+  // closes in around the form rather than opening out.
   station(7, 'contact', {
     x: 6, y: 0.5, lookX: 0.3, lookY: 0.1,
-    mood: { coolPower: 0.88, fogNear: 17, fogFar: 130, accent: '#ff2d4d', ambient: 0.64, density: 0.6, light: 1.4, accentPower: 1.0, exposure: 1.2, bloom: 0.9, vignette: 0.88 },
+    mood: { coolPower: 0.88, fogNear: 17, fogFar: 130, accent: '#ff2d4d', ambient: 0.5, density: 0.5, light: 1.12, accentPower: 0.6, exposure: 0.98, bloom: 0.38, vignette: 1.08 },
   }),
 ]
 
